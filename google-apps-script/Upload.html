@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RTAFNC Evaluation Analyzer Upload</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
+    :root{--navy:#0b2347;--blue:#1c4e89;--bg:#f5f7fb;--line:#d8e2ef;--ok:#166534;--warn:#9a3412;--danger:#b91c1c}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:"TH Sarabun PSK","Sarabun","TH Sarabun New",Tahoma,sans-serif;font-size:18pt;color:#111827;line-height:1.35}
+    header{background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;padding:28px 34px}h1{font-size:34pt;margin:0}main{max-width:1120px;margin:auto;padding:22px}.card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:20px;margin:16px 0;box-shadow:0 8px 24px rgba(11,35,71,.08)}h2{margin:0 0 10px;color:var(--navy);font-size:25pt}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.muted{color:#475569}.drop{border:2px dashed #94a3b8;background:#f8fafc;border-radius:18px;padding:28px;text-align:center}input,select{font-family:inherit;font-size:17pt;width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}button{font-family:inherit;font-size:18pt;font-weight:800;border:0;border-radius:12px;background:var(--blue);color:#fff;padding:12px 18px;cursor:pointer;margin:6px 4px}button.danger{background:var(--danger)}button.secondary{background:#475569}.status{border-left:6px solid var(--blue);background:#f8fafc;padding:10px 12px;border-radius:12px;margin:10px 0}.ok{border-color:var(--ok);color:var(--ok);font-weight:800}.warn{border-color:var(--warn);color:var(--warn);font-weight:800}pre{background:#0f172a;color:#e2e8f0;border-radius:14px;padding:14px;overflow:auto;font-size:13pt;min-height:160px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}th{background:#eaf3ff;color:var(--navy)}a{color:var(--blue);font-weight:800}@media(max-width:800px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>RTAFNC Evaluation Analyzer</h1>
+    <p>อัปโหลดไฟล์ข้อมูลดิบ → เก็บ Google Drive → แปลงเป็น Google Sheets → วิเคราะห์ → ส่งออก Excel/PDF</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>อัปโหลดไฟล์ข้อมูลดิบ</h2>
+      <p class="muted">รองรับ .xlsx, .xls, .csv, .tsv | แนะนำให้ทดสอบทีละ 1 ไฟล์ก่อนใช้งานจริง</p>
+      <form id="uploadForm">
+        <div class="grid">
+          <div class="drop">
+            <input type="file" name="rawFile" id="rawFile" accept=".xlsx,.xls,.csv,.tsv" required />
+            <p class="muted">เลือกไฟล์แบบประเมินจากเครื่อง</p>
+          </div>
+          <div>
+            <label>เลือกหมวดเอง ถ้าต้องการบังคับหมวด</label>
+            <select name="categoryOverride" id="categoryOverride">
+              <option value="">ให้ระบบจำแนกอัตโนมัติ</option>
+              <option>นภาภิบาล</option>
+              <option>คุณลักษณะทางทหาร</option>
+              <option>เดินทางไกล</option>
+              <option>ทหาร_1_4</option>
+              <option>จิตอาสา</option>
+              <option>เจตคติ</option>
+              <option>อาจารย์ที่ปรึกษา</option>
+              <option>SMART_NURSE</option>
+              <option>อุทธรณ์ร้องทุกข์</option>
+              <option>การรักษาความลับ</option>
+              <option>บริการข้อมูล</option>
+              <option>สุขภาพชมรมกีฬา</option>
+              <option>สร้างสรรค์กล้าหาญอดทน</option>
+            </select>
+            <p class="muted">ถ้าไม่เลือก ระบบจะดูจากชื่อไฟล์และหัวรายงาน</p>
+          </div>
+        </div>
+        <button type="button" onclick="uploadOnly()">อัปโหลดเข้า Drive อย่างเดียว</button>
+        <button type="button" class="danger" onclick="uploadAndProcess()">อัปโหลด + แปลง + ประมวลผลทันที</button>
+      </form>
+      <div id="status" class="status">พร้อมใช้งาน</div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h2>ไฟล์ที่รอใน Drive</h2>
+        <button onclick="refreshStatus()">รีเฟรชรายการไฟล์</button>
+        <div id="fileTable"></div>
+      </div>
+      <div class="card">
+        <h2>ประมวลผลไฟล์ที่รอคิว</h2>
+        <p class="muted">ใช้เมื่อมีไฟล์อยู่ในโฟลเดอร์ 00_วางไฟล์ที่นี่แล้ว</p>
+        <button class="danger" onclick="processPending()">ประมวลผลไฟล์รอคิว</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>ผลลัพธ์ / Debug</h2>
+      <pre id="output"></pre>
+    </section>
+  </main>
+
+  <script>
+    function setStatus(msg, cls){ const el=document.getElementById('status'); el.textContent=msg; el.className='status '+(cls||''); }
+    function print(obj){ document.getElementById('output').textContent=JSON.stringify(obj,null,2); }
+    function uploadOnly(){
+      const form=document.getElementById('uploadForm');
+      if(!document.getElementById('rawFile').files.length){ setStatus('กรุณาเลือกไฟล์ก่อน','warn'); return; }
+      setStatus('กำลังอัปโหลดเข้า Google Drive...','warn');
+      google.script.run.withSuccessHandler(res=>{ setStatus('อัปโหลดสำเร็จ','ok'); print(res); refreshStatus(); }).withFailureHandler(showError).uploadOnly(form);
+    }
+    function uploadAndProcess(){
+      const form=document.getElementById('uploadForm');
+      if(!document.getElementById('rawFile').files.length){ setStatus('กรุณาเลือกไฟล์ก่อน','warn'); return; }
+      if(!confirm('ยืนยันอัปโหลดและประมวลผลไฟล์นี้ทันที?')) return;
+      setStatus('กำลังอัปโหลด แปลงไฟล์ และประมวลผล...','warn');
+      google.script.run.withSuccessHandler(res=>{ setStatus('ประมวลผลสำเร็จ','ok'); print(res); refreshStatus(); }).withFailureHandler(showError).uploadAndProcess(form);
+    }
+    function processPending(){
+      if(!confirm('ยืนยันประมวลผลไฟล์ที่รอคิวทั้งหมด?')) return;
+      setStatus('กำลังประมวลผลไฟล์รอคิว...','warn');
+      google.script.run.withSuccessHandler(res=>{ setStatus('ประมวลผลคิวเสร็จ','ok'); print(res); refreshStatus(); }).withFailureHandler(showError).processPendingRawFiles();
+    }
+    function refreshStatus(){
+      google.script.run.withSuccessHandler(res=>{ renderFiles(res.pendingFiles||[]); print(res); }).withFailureHandler(showError).getSystemStatus();
+    }
+    function renderFiles(files){
+      const rows=files.map(f=>`<tr><td>${esc(f.name)}</td><td>${f.supported?'YES':'NO'}</td><td><a href="${f.url}" target="_blank">เปิด</a></td></tr>`).join('');
+      document.getElementById('fileTable').innerHTML=`<table><thead><tr><th>ชื่อไฟล์</th><th>รองรับ</th><th>ลิงก์</th></tr></thead><tbody>${rows||'<tr><td colspan="3">ไม่พบไฟล์รอคิว</td></tr>'}</tbody></table>`;
+    }
+    function showError(err){ setStatus('ERROR: '+(err.message||err),'warn'); print({error:String(err&&err.stack?err.stack:err)}); }
+    function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
+    refreshStatus();
+  </script>
+</body>
+</html>
