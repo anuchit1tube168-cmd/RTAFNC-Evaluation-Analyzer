@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RTAFNC Evaluation Analyzer</title>
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">วิทยาลัยพยาบาลทหารอากาศ</p>
+      <h1>RTAFNC Evaluation Analyzer</h1>
+      <p>หน้าบ้าน GitHub Pages • Backend Google Apps Script • Storage Google Drive</p>
+    </div>
+    <div class="badge">ปีการศึกษา 2568</div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>ตั้งค่า Backend</h2>
+      <p class="muted">วาง URL ของ Google Apps Script Web App หลัง Deploy แล้ว ระบบจะบันทึกไว้ในเครื่องนี้</p>
+      <div class="row">
+        <input id="gasUrl" placeholder="https://script.google.com/macros/s/xxxxx/exec" />
+        <button onclick="saveBackendUrl()">บันทึก URL</button>
+      </div>
+      <div id="backendStatus" class="status">ยังไม่ได้ตั้งค่า</div>
+    </section>
+
+    <section class="grid">
+      <div class="card action">
+        <h2>1) ตรวจไฟล์ใน Drive</h2>
+        <p>อ่านไฟล์ในโฟลเดอร์ <b>00_วางไฟล์ที่นี่</b> ก่อนประมวลผล</p>
+        <button onclick="listFiles()">ตรวจไฟล์ใน Drive</button>
+      </div>
+      <div class="card action">
+        <h2>2) ประมวลผล</h2>
+        <p>แปลง .xlsx เป็น Google Sheets ชั่วคราว แล้วคำนวณ/ส่งออก Excel/PDF</p>
+        <button class="danger" onclick="processFiles()">ประมวลผลไฟล์รอคิว</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>ผลการทำงาน</h2>
+      <div id="runStatus" class="status">พร้อมใช้งาน</div>
+      <div id="resultTable"></div>
+      <pre id="rawOutput"></pre>
+    </section>
+
+    <section class="card">
+      <h2>Flow การเก็บข้อมูล</h2>
+      <ol>
+        <li>ไฟล์ดิบเข้า Google Drive: <code>02_ข้อมูลดิบจากแบบประเมิน/00_วางไฟล์ที่นี่</code></li>
+        <li>Apps Script แปลง Office <code>.xlsx</code> เป็น Google Sheets ชั่วคราว</li>
+        <li>คำนวณค่า X, SD ด้วยทศนิยม 2 ตำแหน่ง</li>
+        <li>ส่งออกผลไป <code>03_สรุปผลและตารางคำนวณ</code></li>
+        <li>ส่งออก PDF ไป <code>04_รายงานส่งออก_PDF</code></li>
+      </ol>
+    </section>
+  </main>
+
+  <footer>RTAFNC Evaluation Analyzer • GitHub frontend with Google Drive storage</footer>
+  <script src="assets/app.js"></script>
+</body>
+</html>
