@@ -14,22 +14,34 @@
 → ย้ายไฟล์ต้นฉบับไปโฟลเดอร์ประมวลผลแล้ว
 ```
 
-## 1) Deploy Backend: Google Apps Script
+## สถาปัตยกรรมที่ใช้จริง
+
+```text
+GitHub Pages = Portal / Dashboard / ปุ่มเปิดระบบ
+Apps Script Web App = หน้า Upload จริง + Process Engine
+Google Drive = Storage ไฟล์ดิบ ผลลัพธ์ PDF และ QA Log
+```
+
+## 1) Deploy Backend: Google Apps Script แบบง่ายที่สุด
+
+ใช้ไฟล์เดียวจบ: `google-apps-script/Code.gs`
 
 1. เปิด https://script.google.com
-2. สร้าง Project ใหม่ชื่อ `RTAFNC Evaluation Analyzer Backend`
-3. วางไฟล์ `google-apps-script/Code.gs`
-4. สร้างไฟล์ HTML ชื่อ `Upload` แล้ววาง `google-apps-script/Upload.html`
-5. เปิด Project Settings → ติ๊ก `Show appsscript.json manifest file in editor`
-6. วาง `google-apps-script/appsscript.json`
-7. ไปที่ Services → Add a service → เลือก `Drive API` → version v3
-8. Run หรือ Deploy เพื่อ authorize สิทธิ์ Drive
-9. Deploy → New deployment → Web app
-10. Execute as: `Me`
-11. Who has access: สำหรับ pilot ใช้ `Anyone with the link` หรือจำกัดตามนโยบายหน่วย
-12. Copy Web App URL
+2. เปิด Project เดิมหรือสร้าง Project ใหม่ชื่อ `RTAFNC Evaluation Analyzer Backend`
+3. เปิดไฟล์ `.gs` หลัก เช่น `รหัส.gs` หรือ `Code.gs`
+4. ลบโค้ดเดิมออกทั้งหมด
+5. วางโค้ดจาก `google-apps-script/Code.gs` รุ่น v3 Production Single File
+6. เปิด Project Settings → ติ๊ก `Show appsscript.json manifest file in editor`
+7. วาง `google-apps-script/appsscript.json`
+8. ไปที่ Services → Add a service → เลือก `Drive API` → version v3
+9. กด Save
+10. Deploy → Manage deployments → Edit
+11. Version เลือก `New version`
+12. Execute as: `Me`
+13. Who has access: สำหรับ pilot ใช้ `Anyone with the link` หรือจำกัดตามนโยบายหน่วย
+14. กด Deploy
 
-> สำคัญ: ถ้าเคย Deploy แล้ว ต้องกด `Deploy → Manage deployments → Edit → New version → Deploy` เพื่อให้ Code.gs และ Upload.html รุ่นใหม่ทำงานจริง
+> รุ่น v3 ไม่ต้องสร้าง `Upload.html` แล้ว เพราะหน้า Upload ถูกฝังใน `Code.gs` โดยตรง
 
 ## 2) ใช้งานระบบจริง
 
@@ -76,4 +88,4 @@ Expected:
 - ทดสอบทีละ 1 ไฟล์ก่อนเปิดใช้งานจริง
 - ตรวจ `QA_Log` ทุกครั้งก่อนใช้ทางราชการ
 - ถ้าไฟล์ Excel โครงสร้างต่างกันมาก ให้เพิ่ม parser rule ใน `Code.gs`
-- ถ้า Upload UI ไม่เปลี่ยน ให้ redeploy Apps Script เป็น new version
+- ถ้าหน้าเว็บยังเป็นรุ่นเก่า ต้อง redeploy Apps Script เป็น `New version`
