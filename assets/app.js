@@ -1,8 +1,12 @@
 const STORAGE_KEY = 'RTAFNC_GAS_WEB_APP_URL';
+const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbz3Uq3oJtOu95URz2HfcgdPnoRYPdaJfFoRi1Eh9-9sRkTx-_iEODKFNN903N0BcVQq/exec';
 
 window.addEventListener('DOMContentLoaded', () => {
-  const saved = localStorage.getItem(STORAGE_KEY) || '';
+  const saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_BACKEND_URL;
   document.getElementById('gasUrl').value = saved;
+  if (!localStorage.getItem(STORAGE_KEY) && DEFAULT_BACKEND_URL) {
+    localStorage.setItem(STORAGE_KEY, DEFAULT_BACKEND_URL);
+  }
   updateBackendStatus();
 });
 
@@ -16,8 +20,14 @@ function saveBackendUrl(){
   updateBackendStatus();
 }
 
+function resetBackendUrl(){
+  localStorage.setItem(STORAGE_KEY, DEFAULT_BACKEND_URL);
+  document.getElementById('gasUrl').value = DEFAULT_BACKEND_URL;
+  updateBackendStatus();
+}
+
 function updateBackendStatus(){
-  const url = localStorage.getItem(STORAGE_KEY);
+  const url = localStorage.getItem(STORAGE_KEY) || DEFAULT_BACKEND_URL;
   if(url) setBackendStatus('เชื่อม Backend แล้ว: ' + shortUrl(url), 'ok');
   else setBackendStatus('ยังไม่ได้ตั้งค่า Backend URL', 'warn');
 }
@@ -28,7 +38,7 @@ function setRunStatus(text, cls){ const el=document.getElementById('runStatus');
 function printRaw(obj){ document.getElementById('rawOutput').textContent = JSON.stringify(obj, null, 2); }
 
 function getBackendUrl(){
-  const url = localStorage.getItem(STORAGE_KEY);
+  const url = localStorage.getItem(STORAGE_KEY) || DEFAULT_BACKEND_URL;
   if(!url){ setRunStatus('กรุณาวางและบันทึก Google Apps Script Web App URL ก่อน', 'warn'); throw new Error('Missing backend URL'); }
   return url;
 }
@@ -59,6 +69,7 @@ async function listFiles(){
   try{
     setRunStatus('กำลังตรวจไฟล์ใน Google Drive...', 'warn');
     const data = await jsonp('list');
+    if (data && data.ok === false) throw new Error(data.error || 'Backend returned ok=false');
     setRunStatus(`พบไฟล์ ${data.files?.length || 0} รายการ`, 'ok');
     renderFiles(data.files || []);
     printRaw(data);
@@ -70,6 +81,7 @@ async function processFiles(){
   try{
     setRunStatus('กำลังประมวลผลไฟล์ อาจใช้เวลาตามขนาดไฟล์...', 'warn');
     const data = await jsonp('process');
+    if (data && data.ok === false) throw new Error(data.error || 'Backend returned ok=false');
     setRunStatus(`เสร็จสิ้น: ${data.processed || 0} รายการ`, 'ok');
     renderResults(data.results || []);
     printRaw(data);
