@@ -1,8 +1,8 @@
 /**
- * RTAFNC Evaluation Analyzer Backend
- * Frontend: GitHub Pages
+ * RTAFNC Evaluation Analyzer Backend v2
+ * Frontend: GitHub Pages dashboard
+ * Real upload UI: Apps Script Web App using google.script.run
  * Storage: Google Drive
- * Backend: Google Apps Script Web App + Advanced Drive API v3
  */
 
 const CONFIG = {
@@ -35,14 +35,22 @@ const CATEGORY_RULES = [
 ];
 
 function doGet(e) {
-  const p = e.parameter || {};
+  const p = (e && e.parameter) || {};
+  if (p.action || p.callback) return apiGet_(p);
+  return HtmlService.createTemplateFromFile('Upload')
+    .evaluate()
+    .setTitle('RTAFNC Evaluation Analyzer')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function apiGet_(p) {
   const action = p.action || 'health';
   let result;
   try {
-    if (action === 'list') result = { ok: true, files: listPendingFiles_() };
-    else if (action === 'process') result = processPendingRawFiles_();
+    if (action === 'list') result = { ok: true, files: listPendingFiles() };
+    else if (action === 'process') result = processPendingRawFiles();
     else if (action === 'test') result = processOneFile_(DriveApp.getFileById(p.fileId));
-    else result = { ok: true, name: 'RTAFNC Evaluation Analyzer Backend', time: new Date().toISOString() };
+    else result = { ok: true, name: 'RTAFNC Evaluation Analyzer Backend v2', uploadUi: ScriptApp.getService().getUrl(), time: new Date().toISOString() };
   } catch (err) {
     result = { ok: false, error: String(err && err.stack ? err.stack : err) };
   }
@@ -51,108 +59,115 @@ function doGet(e) {
 
 function jsonp_(obj, callback) {
   const json = JSON.stringify(obj);
-  if (callback) {
-    return ContentService.createTextOutput(callback + '(' + json + ');')
-      .setMimeType(ContentService.MimeType.JAVASCRIPT);
-  }
+  if (callback) return ContentService.createTextOutput(callback + '(' + json + ');').setMimeType(ContentService.MimeType.JAVASCRIPT);
   return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
 
-function listPendingFiles_() {
+/** Called by Upload.html */
+function getSystemStatus() {
+  return {
+    ok: true,
+    version: 'v2-upload',
+    academicYear: CONFIG.ACADEMIC_YEAR,
+    pendingFiles: listPendingFiles(),
+    folders: {
+      pending: CONFIG.PENDING_FOLDER_ID,
+      processed: CONFIG.PROCESSED_FOLDER_ID,
+      unknown: CONFIG.UNKNOWN_FOLDER_ID,
+      summary: CONFIG.SUMMARY_FOLDER_ID,
+      pdf: CONFIG.PDF_FOLDER_ID
+    }
+  };
+}
+
+/** Called by Upload.html: upload file to Drive and process immediately */
+function uploadAndProcess(form) {
+  if (!form || !form.rawFile) throw new Error('ไม่พบไฟล์ rawFile');
+  const fileBlob = form.rawFile;
+  const originalName = fileBlob.getName() || 'raw_upload.xlsx';
+  if (!isSupported_(originalName)) throw new Error('รองรับเฉพาะ .xlsx, .xls, .csv, .tsv');
+
+  const saved = DriveApp.getFolderById(CONFIG.PENDING_FOLDER_ID).createFile(fileBlob).setName(originalName);
+  const result = processOneFile_(saved, form.categoryOverride || '');
+  result.uploadedFileId = saved.getId();
+  return result;
+}
+
+/** Called by Upload.html: only upload file to pending folder */
+function uploadOnly(form) {
+  if (!form || !form.rawFile) throw new Error('ไม่พบไฟล์ rawFile');
+  const fileBlob = form.rawFile;
+  const originalName = fileBlob.getName() || 'raw_upload.xlsx';
+  if (!isSupported_(originalName)) throw new Error('รองรับเฉพาะ .xlsx, .xls, .csv, .tsv');
+  const saved = DriveApp.getFolderById(CONFIG.PENDING_FOLDER_ID).createFile(fileBlob).setName(originalName);
+  appendLog_(originalName, 'UPLOADED', 'รอประมวลผล', 'uploaded via web ui', '', '');
+  return { ok: true, status: 'UPLOADED', file: originalName, fileId: saved.getId(), url: saved.getUrl() };
+}
+
+function listPendingFiles() {
   const folder = DriveApp.getFolderById(CONFIG.PENDING_FOLDER_ID);
   const it = folder.getFiles();
   const rows = [];
   while (it.hasNext()) {
     const f = it.next();
-    rows.push({
-      id: f.getId(),
-      name: f.getName(),
-      mimeType: f.getMimeType(),
-      size: f.getSize(),
-      url: f.getUrl(),
-      supported: isSupported_(f.getName())
-    });
+    rows.push({ id: f.getId(), name: f.getName(), mimeType: f.getMimeType(), size: f.getSize(), url: f.getUrl(), supported: isSupported_(f.getName()) });
   }
   return rows;
 }
 
-function processPendingRawFiles_() {
+function processPendingRawFiles() {
   const folder = DriveApp.getFolderById(CONFIG.PENDING_FOLDER_ID);
   const it = folder.getFiles();
   const results = [];
   let count = 0;
   while (it.hasNext() && count < CONFIG.MAX_FILES_PER_RUN) {
     const f = it.next();
-    if (!isSupported_(f.getName())) {
-      results.push({ file: f.getName(), status: 'SKIP', message: 'not supported' });
-      continue;
-    }
+    if (!isSupported_(f.getName())) { results.push({ file: f.getName(), status: 'SKIP', message: 'not supported' }); continue; }
     count++;
-    try {
-      results.push(processOneFile_(f));
-    } catch (err) {
-      results.push({ file: f.getName(), status: 'ERROR', message: String(err) });
-      appendLog_(f.getName(), 'ERROR', '99_ไม่ทราบประเภท', String(err), '', '');
-    }
+    try { results.push(processOneFile_(f)); }
+    catch (err) { results.push({ file: f.getName(), status: 'ERROR', message: String(err) }); appendLog_(f.getName(), 'ERROR', '99_ไม่ทราบประเภท', String(err), '', ''); }
   }
   return { ok: true, processed: results.length, results, finishedAt: new Date().toISOString() };
 }
 
-function processOneFile_(file) {
+function processOneFile_(file, categoryOverride) {
   const tempId = convertToGoogleSheet_(file);
-  const analysis = analyzeSheet_(tempId, file.getName());
+  const analysis = analyzeSheet_(tempId, file.getName(), categoryOverride);
+  if (analysis.category === '99_ไม่ทราบประเภท' || analysis.confidence < 0.55) {
+    moveFile_(file, CONFIG.PENDING_FOLDER_ID, CONFIG.UNKNOWN_FOLDER_ID);
+    if (!CONFIG.KEEP_TEMP_SHEETS) DriveApp.getFileById(tempId).setTrashed(true);
+    appendLog_(file.getName(), 'NEEDS_REVIEW', analysis.category, 'category confidence low', '', '');
+    return { ok: true, file: file.getName(), status: 'NEEDS_REVIEW', category: analysis.category, confidence: analysis.confidence, message: 'ย้ายไป 99_ไม่ทราบประเภท' };
+  }
   const output = createOutputWorkbook_(analysis);
   const pdf = exportPdf_(output.spreadsheetId, analysis.safeName + '.pdf');
   moveFile_(file, CONFIG.PENDING_FOLDER_ID, CONFIG.PROCESSED_FOLDER_ID);
   if (!CONFIG.KEEP_TEMP_SHEETS) DriveApp.getFileById(tempId).setTrashed(true);
   appendLog_(file.getName(), 'SUCCESS', analysis.category, 'processed', output.url, pdf.url);
-  return {
-    file: file.getName(),
-    status: 'SUCCESS',
-    category: analysis.category,
-    confidence: analysis.confidence,
-    itemCount: analysis.items.length,
-    scoreRows: analysis.scoreRows.length,
-    mean: round2_(analysis.overallMean),
-    sd: round2_(analysis.overallSd),
-    outputSpreadsheetUrl: output.url,
-    pdfUrl: pdf.url
-  };
+  return { ok: true, file: file.getName(), status: 'SUCCESS', category: analysis.category, confidence: analysis.confidence, itemCount: analysis.items.length, scoreRows: analysis.scoreRows.length, mean: round2_(analysis.overallMean), sd: round2_(analysis.overallSd), outputSpreadsheetUrl: output.url, pdfUrl: pdf.url };
 }
 
 function convertToGoogleSheet_(file) {
   const blob = file.getBlob();
   const name = '_TEMP_' + file.getName().replace(/\.(xlsx|xls|csv|tsv)$/i, '') + '_' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd_HHmmss');
-  const resource = { name, mimeType: MimeType.GOOGLE_SHEETS };
-  const created = Drive.Files.create(resource, blob, { fields: 'id,name,mimeType' });
+  const created = Drive.Files.create({ name, mimeType: MimeType.GOOGLE_SHEETS }, blob, { fields: 'id,name,mimeType' });
   return created.id;
 }
 
-function analyzeSheet_(spreadsheetId, rawName) {
+function analyzeSheet_(spreadsheetId, rawName, categoryOverride) {
   const ss = SpreadsheetApp.openById(spreadsheetId);
   const sh = ss.getSheets()[0];
   const values = sh.getDataRange().getValues();
   const display = sh.getDataRange().getDisplayValues();
   const text = display.flat().filter(Boolean).join(' ');
-  const cat = classify_(rawName + ' ' + text);
+  const cat = categoryOverride ? { category: categoryOverride, confidence: 1 } : classify_(rawName + ' ' + text);
   const items = detectItems_(display);
   const scoreRows = detectScoreRows_(values);
   const all = [];
   scoreRows.forEach(r => r.scores.forEach(v => all.push(v)));
   const overallMean = all.length ? mean_(all) : 0;
   const overallSd = all.length > 1 ? sdSample_(all) : 0;
-  return {
-    rawName,
-    category: cat.category,
-    confidence: cat.confidence,
-    title: detectTitle_(display) || rawName,
-    items,
-    scoreRows,
-    overallMean,
-    overallSd,
-    invalidCount: detectInvalidScores_(values),
-    safeName: safeName_(['ผลวิเคราะห์', cat.category, 'ปีการศึกษา_' + CONFIG.ACADEMIC_YEAR, new Date().toISOString().slice(0, 10)].join('_'))
-  };
+  return { rawName, category: cat.category, confidence: cat.confidence, title: detectTitle_(display) || rawName, items, scoreRows, overallMean, overallSd, invalidCount: detectInvalidScores_(values), safeName: safeName_(['ผลวิเคราะห์', cat.category, 'ปีการศึกษา_' + CONFIG.ACADEMIC_YEAR, new Date().toISOString().slice(0, 10)].join('_')) };
 }
 
 function createOutputWorkbook_(a) {
@@ -165,11 +180,7 @@ function createOutputWorkbook_(a) {
   const rows = ss.insertSheet('ScoreRows');
   const qa = ss.insertSheet('QA_Log');
   const print = ss.insertSheet('Print_Report');
-  writeDashboard_(dash, a);
-  writeItems_(items, a.items);
-  writeScoreRows_(rows, a.scoreRows);
-  writeQa_(qa, a);
-  writePrint_(print, a);
+  writeDashboard_(dash, a); writeItems_(items, a.items); writeScoreRows_(rows, a.scoreRows); writeQa_(qa, a); writePrint_(print, a);
   ss.getSheets().forEach(applyStyle_);
   SpreadsheetApp.flush();
   return { spreadsheetId: ss.getId(), url: ss.getUrl() };
@@ -181,20 +192,13 @@ function writeDashboard_(sh, a) {
     ['รายการ','ผลลัพธ์'],['ชื่อไฟล์',a.rawName],['หมวด',a.category],['Confidence',a.confidence],['หัวรายงาน',a.title],['จำนวนข้อ',a.items.length],['จำนวนแถวคะแนน',a.scoreRows.length],['X',round2_(a.overallMean)],['SD',round2_(a.overallSd)],['QA',a.invalidCount === 0 ? 'PASS' : 'REVIEW']
   ]);
 }
-function writeItems_(sh, items) {
-  sh.getRange(1,1,1,4).setValues([['ลำดับ','รหัสข้อ','ข้อความ','sourceRow']]);
-  if (items.length) sh.getRange(2,1,items.length,4).setValues(items.map((x,i)=>[i+1,x.no,x.text,x.row]));
-}
+function writeItems_(sh, items) { sh.getRange(1,1,1,4).setValues([['ลำดับ','รหัสข้อ','ข้อความ','sourceRow']]); if (items.length) sh.getRange(2,1,items.length,4).setValues(items.map((x,i)=>[i+1,x.no,x.text,x.row])); }
 function writeScoreRows_(sh, rows) {
   const max = Math.max(0, ...rows.map(r=>r.scores.length));
-  const headers = ['sourceRow','label'];
-  for (let i=1;i<=max;i++) headers.push('ข้อ'+i);
-  headers.push('X','SD','ระดับ');
+  const headers = ['sourceRow','label']; for (let i=1;i<=max;i++) headers.push('ข้อ'+i); headers.push('X','SD','ระดับ');
   sh.getRange(1,1,1,headers.length).setValues([headers]);
   if (!rows.length) return;
-  sh.getRange(2,1,rows.length,headers.length).setValues(rows.map(r=>{
-    const arr=[r.row,r.label].concat(r.scores); while(arr.length<2+max) arr.push(''); arr.push('','',''); return arr;
-  }));
+  sh.getRange(2,1,rows.length,headers.length).setValues(rows.map(r=>{ const arr=[r.row,r.label].concat(r.scores); while(arr.length<2+max) arr.push(''); arr.push('','',''); return arr; }));
   for (let i=0;i<rows.length;i++) {
     const row = 2+i, first=3, last=2+max, meanCol=3+max, sdCol=4+max, levelCol=5+max;
     const start = col_(first)+row, end=col_(last)+row, meanCell=col_(meanCol)+row;
@@ -206,13 +210,7 @@ function writeScoreRows_(sh, rows) {
 function writeQa_(sh,a){sh.getRange(1,1,7,3).setValues([['รายการ','ผล','รายละเอียด'],['จำแนกหมวด',a.confidence>=.55?'PASS':'REVIEW',a.category],['พบข้อคำถาม',a.items.length?'PASS':'REVIEW',a.items.length],['พบแถวคะแนน',a.scoreRows.length?'PASS':'REVIEW',a.scoreRows.length],['ช่วงคะแนน 1-5',a.invalidCount===0?'PASS':'REVIEW',a.invalidCount],['สูตร','PASS',CONFIG.ROUND_MODE+'(...,2)'],['ฟอนต์','PASS',CONFIG.REPORT_FONT]]);}
 function writePrint_(sh,a){sh.getRange('A1:H1').merge().setValue('รายงานผลการประเมิน ปีการศึกษา '+CONFIG.ACADEMIC_YEAR);sh.getRange('A2:H2').merge().setValue('วิทยาลัยพยาบาลทหารอากาศ');sh.getRange('A4:B11').setValues([['หมวดงาน',a.category],['ไฟล์',a.rawName],['หัวรายงาน',a.title],['จำนวนข้อ',a.items.length],['จำนวนแถวคะแนน',a.scoreRows.length],['X',round2_(a.overallMean)],['SD',round2_(a.overallSd)],['หมายเหตุ','ตรวจ QA_Log ก่อนใช้งานทางราชการ']]);}
 
-function exportPdf_(spreadsheetId, name) {
-  const url = 'https://docs.google.com/spreadsheets/d/'+spreadsheetId+'/export?format=pdf&size=A4&portrait=false&fitw=true&sheetnames=false&printtitle=false&pagenumbers=true&gridlines=false&fzr=false';
-  const res = UrlFetchApp.fetch(url,{headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()}});
-  const pdf = DriveApp.getFolderById(CONFIG.PDF_FOLDER_ID).createFile(res.getBlob().setName(name));
-  return { id: pdf.getId(), url: pdf.getUrl() };
-}
-
+function exportPdf_(spreadsheetId, name) { const url = 'https://docs.google.com/spreadsheets/d/'+spreadsheetId+'/export?format=pdf&size=A4&portrait=false&fitw=true&sheetnames=false&printtitle=false&pagenumbers=true&gridlines=false&fzr=false'; const res = UrlFetchApp.fetch(url,{headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()}}); const pdf = DriveApp.getFolderById(CONFIG.PDF_FOLDER_ID).createFile(res.getBlob().setName(name)); return { id: pdf.getId(), url: pdf.getUrl() }; }
 function detectTitle_(display){for(let r=0;r<Math.min(20,display.length);r++){for(let c=0;c<display[r].length;c++){const s=String(display[r][c]||'').trim();if(s.length>25 && /(ผลการประเมิน|แบบประเมิน|วิทยาลัยพยาบาลทหารอากาศ|นภาภิบาล)/.test(s)) return s;}}return '';}
 function detectItems_(display){const out=[], seen={};display.forEach((row,idx)=>{const txt=row.filter(Boolean).join(' ').trim();let m=txt.match(/^(\d+(?:\.\d+)?)\s+(.{8,})$/);if(m&&!seen[m[1]]){seen[m[1]]=1;out.push({no:m[1],text:m[2],row:idx+1});}});return out;}
 function detectScoreRows_(values){const out=[];values.forEach((row,idx)=>{const scores=row.map(score_).filter(v=>v!==null);if(scores.length>=3)out.push({row:idx+1,label:String(row[0]||('Row '+(idx+1))),scores});});return out;}
