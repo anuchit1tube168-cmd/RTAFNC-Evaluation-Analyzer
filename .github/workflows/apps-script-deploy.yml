@@ -1,0 +1,40 @@
+name: Deploy Apps Script Backend
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'google-apps-script/**'
+
+jobs:
+  deploy-apps-script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare Apps Script project files
+        run: |
+          mkdir -p gas-dist
+          cp google-apps-script/Code.gs gas-dist/Code.gs
+          cp google-apps-script/appsscript.json gas-dist/appsscript.json
+          cd gas-dist
+          echo '${{ secrets.CLASP_JSON }}' > .clasp.json
+          echo '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
+
+      - name: Install clasp
+        run: npm install -g @google/clasp
+
+      - name: Push Apps Script code
+        working-directory: gas-dist
+        run: clasp push --force
+
+      - name: Create Apps Script version
+        working-directory: gas-dist
+        run: clasp version "GitHub deploy ${{ github.sha }}"
