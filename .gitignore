@@ -1,0 +1,7 @@
+# Apps Script / clasp credentials
+.clasprc.json
+.clasp.json
+
+# OS / editor
+.DS_Store
+.vscode/
