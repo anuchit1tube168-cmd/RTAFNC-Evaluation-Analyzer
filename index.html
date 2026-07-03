@@ -19,10 +19,11 @@
   <main>
     <section class="card">
       <h2>ตั้งค่า Backend</h2>
-      <p class="muted">วาง URL ของ Google Apps Script Web App หลัง Deploy แล้ว ระบบจะบันทึกไว้ในเครื่องนี้</p>
+      <p class="muted">ระบบตั้งค่า Google Apps Script Web App URL ให้แล้ว หากเปลี่ยน URL ใหม่ให้วางแล้วกดบันทึก</p>
       <div class="row">
         <input id="gasUrl" placeholder="https://script.google.com/macros/s/xxxxx/exec" />
         <button onclick="saveBackendUrl()">บันทึก URL</button>
+        <button class="secondary" onclick="resetBackendUrl()">ใช้ URL ค่าเริ่มต้น</button>
       </div>
       <div id="backendStatus" class="status">ยังไม่ได้ตั้งค่า</div>
     </section>
