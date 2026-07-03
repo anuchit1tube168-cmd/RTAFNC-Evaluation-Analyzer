@@ -1,35 +1,62 @@
 # Deploy Guide — RTAFNC Evaluation Analyzer
 
+## เป้าหมายระบบจริง
+
+ระบบนี้ต้องทำได้ครบตาม workflow:
+
+```text
+อัปโหลดไฟล์จากหน้าเว็บ
+→ เก็บไฟล์ดิบใน Google Drive
+→ แปลง .xlsx/.xls/.csv/.tsv เป็น Google Sheets
+→ วิเคราะห์ X / SD / หมวดงาน / QA
+→ ส่งออกตารางคำนวณ Excel/Sheet
+→ ส่งออก PDF
+→ ย้ายไฟล์ต้นฉบับไปโฟลเดอร์ประมวลผลแล้ว
+```
+
 ## 1) Deploy Backend: Google Apps Script
 
 1. เปิด https://script.google.com
 2. สร้าง Project ใหม่ชื่อ `RTAFNC Evaluation Analyzer Backend`
-3. วาง `google-apps-script/Code.gs`
-4. เปิด Project Settings → ติ๊ก `Show appsscript.json manifest file in editor`
-5. วาง `google-apps-script/appsscript.json`
-6. ไปที่ Services → Add a service → เลือก `Drive API` → version v3
-7. Run ฟังก์ชัน `doGet` หรือ `list` ผ่าน Web App หลัง deploy เพื่อ authorize
-8. Deploy → New deployment → Web app
-9. Execute as: `Me`
-10. Who has access: สำหรับ pilot ใช้ `Anyone with the link` หรือจำกัดตามนโยบายหน่วย
-11. Copy Web App URL
+3. วางไฟล์ `google-apps-script/Code.gs`
+4. สร้างไฟล์ HTML ชื่อ `Upload` แล้ววาง `google-apps-script/Upload.html`
+5. เปิด Project Settings → ติ๊ก `Show appsscript.json manifest file in editor`
+6. วาง `google-apps-script/appsscript.json`
+7. ไปที่ Services → Add a service → เลือก `Drive API` → version v3
+8. Run หรือ Deploy เพื่อ authorize สิทธิ์ Drive
+9. Deploy → New deployment → Web app
+10. Execute as: `Me`
+11. Who has access: สำหรับ pilot ใช้ `Anyone with the link` หรือจำกัดตามนโยบายหน่วย
+12. Copy Web App URL
 
-## 2) ตั้งค่า Frontend
+> สำคัญ: ถ้าเคย Deploy แล้ว ต้องกด `Deploy → Manage deployments → Edit → New version → Deploy` เพื่อให้ Code.gs และ Upload.html รุ่นใหม่ทำงานจริง
+
+## 2) ใช้งานระบบจริง
+
+เปิด Google Apps Script Web App URL โดยตรง จะเจอหน้า Upload จริง มีปุ่ม:
+
+- `อัปโหลดเข้า Drive อย่างเดียว`
+- `อัปโหลด + แปลง + ประมวลผลทันที`
+- `รีเฟรชรายการไฟล์`
+- `ประมวลผลไฟล์รอคิว`
+
+## 3) ใช้งานผ่าน GitHub Pages Dashboard
 
 1. เปิด GitHub Pages URL ของ repo
-2. วาง Web App URL ในช่อง Backend URL
-3. กด `บันทึก URL`
-4. กด `ตรวจไฟล์ใน Drive`
-5. ถ้าเห็นไฟล์ใน `00_วางไฟล์ที่นี่` แล้วค่อยกด `ประมวลผลไฟล์รอคิว`
+2. กด `เปิดหน้าอัปโหลดจริง`
+3. หรือกด `ตรวจไฟล์ใน Drive`
+4. ถ้าเห็นไฟล์ใน `00_วางไฟล์ที่นี่` แล้วค่อยกด `ประมวลผลคิว`
 
-## 3) ตรวจผลลัพธ์ใน Google Drive
+## 4) โครง folder Google Drive
 
+- รับไฟล์ดิบ: `02_ข้อมูลดิบจากแบบประเมิน/00_วางไฟล์ที่นี่`
+- ประมวลผลแล้ว: `02_ข้อมูลดิบจากแบบประเมิน/01_ประมวลผลแล้ว`
+- ไม่ทราบประเภท: `02_ข้อมูลดิบจากแบบประเมิน/99_ไม่ทราบประเภท`
 - Excel/Sheet: `03_สรุปผลและตารางคำนวณ`
 - PDF: `04_รายงานส่งออก_PDF`
-- ไฟล์ประมวลผลแล้ว: `02_ข้อมูลดิบจากแบบประเมิน/01_ประมวลผลแล้ว`
-- ไฟล์ไม่มั่นใจ: `02_ข้อมูลดิบจากแบบประเมิน/99_ไม่ทราบประเภท`
+- QA/Log: `RTAFNC_Evaluation_Process_Log_2568` ในโฟลเดอร์สรุปผล
 
-## 4) Test file แนะนำ
+## 5) Test file แนะนำ
 
 ใช้ไฟล์ที่พบจริงใน Drive:
 
@@ -42,9 +69,11 @@ Expected:
 - category = `นภาภิบาล`
 - output sheet มี `Dashboard`, `Items`, `ScoreRows`, `QA_Log`, `Print_Report`
 - PDF ถูกสร้างใน `04_รายงานส่งออก_PDF`
+- ไฟล์ต้นฉบับย้ายไป `01_ประมวลผลแล้ว`
 
-## 5) ข้อควรระวัง
+## 6) ข้อควรระวัง
 
-- อย่าประมวลผลไฟล์จำนวนมากในรอบแรก
+- ทดสอบทีละ 1 ไฟล์ก่อนเปิดใช้งานจริง
 - ตรวจ `QA_Log` ทุกครั้งก่อนใช้ทางราชการ
 - ถ้าไฟล์ Excel โครงสร้างต่างกันมาก ให้เพิ่ม parser rule ใน `Code.gs`
+- ถ้า Upload UI ไม่เปลี่ยน ให้ redeploy Apps Script เป็น new version
