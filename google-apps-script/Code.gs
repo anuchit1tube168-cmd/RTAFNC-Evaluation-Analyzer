@@ -1,8 +1,8 @@
 /**
- * RTAFNC Evaluation Analyzer Backend v2
- * Frontend: GitHub Pages dashboard
- * Real upload UI: Apps Script Web App using google.script.run
- * Storage: Google Drive
+ * RTAFNC Evaluation Analyzer Backend v3 — Production Single File
+ * ใช้ไฟล์นี้ไฟล์เดียวใน Apps Script ได้เลย ไม่ต้องสร้าง Upload.html แยก
+ * Frontend Portal: GitHub Pages
+ * Real upload/process engine: Apps Script Web App + Google Drive
  */
 
 const CONFIG = {
@@ -37,20 +37,19 @@ const CATEGORY_RULES = [
 function doGet(e) {
   const p = (e && e.parameter) || {};
   if (p.action || p.callback) return apiGet_(p);
-  return HtmlService.createTemplateFromFile('Upload')
-    .evaluate()
+  return HtmlService.createHtmlOutput(buildUploadPage_())
     .setTitle('RTAFNC Evaluation Analyzer')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function apiGet_(p) {
-  const action = p.action || 'health';
   let result;
   try {
+    const action = p.action || 'health';
     if (action === 'list') result = { ok: true, files: listPendingFiles() };
     else if (action === 'process') result = processPendingRawFiles();
-    else if (action === 'test') result = processOneFile_(DriveApp.getFileById(p.fileId));
-    else result = { ok: true, name: 'RTAFNC Evaluation Analyzer Backend v2', uploadUi: ScriptApp.getService().getUrl(), time: new Date().toISOString() };
+    else if (action === 'test') result = processOneFile_(DriveApp.getFileById(p.fileId), p.category || '');
+    else result = { ok: true, version: 'v3-production-single-file', name: 'RTAFNC Evaluation Analyzer Backend', uploadUi: ScriptApp.getService().getUrl(), time: new Date().toISOString() };
   } catch (err) {
     result = { ok: false, error: String(err && err.stack ? err.stack : err) };
   }
@@ -63,11 +62,10 @@ function jsonp_(obj, callback) {
   return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
 
-/** Called by Upload.html */
 function getSystemStatus() {
   return {
     ok: true,
-    version: 'v2-upload',
+    version: 'v3-production-single-file',
     academicYear: CONFIG.ACADEMIC_YEAR,
     pendingFiles: listPendingFiles(),
     folders: {
@@ -80,28 +78,25 @@ function getSystemStatus() {
   };
 }
 
-/** Called by Upload.html: upload file to Drive and process immediately */
+function uploadOnly(form) {
+  if (!form || !form.rawFile) throw new Error('ไม่พบไฟล์ rawFile');
+  const blob = form.rawFile;
+  const originalName = blob.getName() || 'raw_upload.xlsx';
+  if (!isSupported_(originalName)) throw new Error('รองรับเฉพาะ .xlsx, .xls, .csv, .tsv');
+  const saved = DriveApp.getFolderById(CONFIG.PENDING_FOLDER_ID).createFile(blob).setName(originalName);
+  appendLog_(originalName, 'UPLOADED', 'รอประมวลผล', 'uploaded via web ui', '', '');
+  return { ok: true, status: 'UPLOADED', file: originalName, fileId: saved.getId(), url: saved.getUrl() };
+}
+
 function uploadAndProcess(form) {
   if (!form || !form.rawFile) throw new Error('ไม่พบไฟล์ rawFile');
-  const fileBlob = form.rawFile;
-  const originalName = fileBlob.getName() || 'raw_upload.xlsx';
+  const blob = form.rawFile;
+  const originalName = blob.getName() || 'raw_upload.xlsx';
   if (!isSupported_(originalName)) throw new Error('รองรับเฉพาะ .xlsx, .xls, .csv, .tsv');
-
-  const saved = DriveApp.getFolderById(CONFIG.PENDING_FOLDER_ID).createFile(fileBlob).setName(originalName);
+  const saved = DriveApp.getFolderById(CONFIG.PENDING_FOLDER_ID).createFile(blob).setName(originalName);
   const result = processOneFile_(saved, form.categoryOverride || '');
   result.uploadedFileId = saved.getId();
   return result;
-}
-
-/** Called by Upload.html: only upload file to pending folder */
-function uploadOnly(form) {
-  if (!form || !form.rawFile) throw new Error('ไม่พบไฟล์ rawFile');
-  const fileBlob = form.rawFile;
-  const originalName = fileBlob.getName() || 'raw_upload.xlsx';
-  if (!isSupported_(originalName)) throw new Error('รองรับเฉพาะ .xlsx, .xls, .csv, .tsv');
-  const saved = DriveApp.getFolderById(CONFIG.PENDING_FOLDER_ID).createFile(fileBlob).setName(originalName);
-  appendLog_(originalName, 'UPLOADED', 'รอประมวลผล', 'uploaded via web ui', '', '');
-  return { ok: true, status: 'UPLOADED', file: originalName, fileId: saved.getId(), url: saved.getUrl() };
 }
 
 function listPendingFiles() {
@@ -124,7 +119,7 @@ function processPendingRawFiles() {
     const f = it.next();
     if (!isSupported_(f.getName())) { results.push({ file: f.getName(), status: 'SKIP', message: 'not supported' }); continue; }
     count++;
-    try { results.push(processOneFile_(f)); }
+    try { results.push(processOneFile_(f, '')); }
     catch (err) { results.push({ file: f.getName(), status: 'ERROR', message: String(err) }); appendLog_(f.getName(), 'ERROR', '99_ไม่ทราบประเภท', String(err), '', ''); }
   }
   return { ok: true, processed: results.length, results, finishedAt: new Date().toISOString() };
@@ -150,7 +145,7 @@ function processOneFile_(file, categoryOverride) {
 function convertToGoogleSheet_(file) {
   const blob = file.getBlob();
   const name = '_TEMP_' + file.getName().replace(/\.(xlsx|xls|csv|tsv)$/i, '') + '_' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd_HHmmss');
-  const created = Drive.Files.create({ name, mimeType: MimeType.GOOGLE_SHEETS }, blob, { fields: 'id,name,mimeType' });
+  const created = Drive.Files.create({ name: name, mimeType: MimeType.GOOGLE_SHEETS }, blob, { fields: 'id,name,mimeType' });
   return created.id;
 }
 
@@ -226,3 +221,7 @@ function col_(n){let s='';while(n>0){let m=(n-1)%26;s=String.fromCharCode(65+m)+
 function moveFile_(file, fromId, toId){DriveApp.getFolderById(toId).addFile(file);try{DriveApp.getFolderById(fromId).removeFile(file);}catch(e){}}
 function applyStyle_(sh){const r=sh.getDataRange();r.setFontFamily(CONFIG.REPORT_FONT).setFontSize(14).setWrap(true);sh.getRange(1,1,1,Math.max(1,sh.getLastColumn())).setBackground('#0B2347').setFontColor('#FFFFFF').setFontWeight('bold').setHorizontalAlignment('center');sh.setFrozenRows(1);for(let c=1;c<=sh.getLastColumn();c++)sh.autoResizeColumn(c);}
 function appendLog_(file,status,cat,msg,sheetUrl,pdfUrl){const folder=DriveApp.getFolderById(CONFIG.SUMMARY_FOLDER_ID);const name='RTAFNC_Evaluation_Process_Log_'+CONFIG.ACADEMIC_YEAR;let ss;const it=folder.getFilesByName(name);if(it.hasNext())ss=SpreadsheetApp.openById(it.next().getId());else{ss=SpreadsheetApp.create(name);const f=DriveApp.getFileById(ss.getId());folder.addFile(f);try{DriveApp.getRootFolder().removeFile(f);}catch(e){}ss.getActiveSheet().setName('Log');ss.getActiveSheet().appendRow(['timestamp','file','status','category','message','sheetUrl','pdfUrl']);}ss.getSheetByName('Log').appendRow([new Date(),file,status,cat,msg,sheetUrl,pdfUrl]);}
+
+function buildUploadPage_() {
+  return `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RTAFNC Evaluation Analyzer</title><style>@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');:root{--navy:#0b2347;--blue:#1c4e89;--bg:#f5f7fb;--line:#d8e2ef;--ok:#166534;--warn:#9a3412;--danger:#b91c1c}*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:"TH Sarabun PSK","Sarabun","TH Sarabun New",Tahoma,sans-serif;font-size:18pt;color:#111827;line-height:1.35}header{background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;padding:28px 34px;border-bottom:6px solid #d6a94a}h1{font-size:34pt;margin:0}main{max-width:1120px;margin:auto;padding:22px}.card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:20px;margin:16px 0;box-shadow:0 8px 24px rgba(11,35,71,.08)}h2{margin:0 0 10px;color:var(--navy);font-size:25pt}.muted{color:#475569}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.drop{border:2px dashed #94a3b8;background:#f8fafc;border-radius:18px;padding:24px;text-align:center}input,select{font-family:inherit;font-size:17pt;width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}button{font-family:inherit;font-size:18pt;font-weight:800;border:0;border-radius:12px;background:var(--blue);color:#fff;padding:12px 18px;cursor:pointer;margin:6px 4px}button.danger{background:var(--danger)}button.secondary{background:#475569}.status{border-left:6px solid var(--blue);background:#f8fafc;padding:10px 12px;border-radius:12px;margin:10px 0}.ok{border-color:var(--ok);color:var(--ok);font-weight:800}.warn{border-color:var(--warn);color:var(--warn);font-weight:800}pre{background:#0f172a;color:#e2e8f0;border-radius:14px;padding:14px;overflow:auto;font-size:13pt;min-height:160px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid var(--line);padding:8px 10px;vertical-align:top}th{background:#eaf3ff;color:var(--navy)}a{color:var(--blue);font-weight:800}@media(max-width:800px){.grid{grid-template-columns:1fr}}</style></head><body><header><h1>RTAFNC Evaluation Analyzer</h1><p>อัปโหลดไฟล์ข้อมูลดิบ → เก็บ Google Drive → แปลงข้อมูล → ส่งออก Excel/PDF</p></header><main><section class="card"><h2>อัปโหลดไฟล์ข้อมูลดิบ</h2><p class="muted">รองรับ .xlsx, .xls, .csv, .tsv | แนะนำให้ทดสอบทีละ 1 ไฟล์ก่อนใช้งานจริง</p><form id="uploadForm"><div class="grid"><div class="drop"><input type="file" name="rawFile" id="rawFile" accept=".xlsx,.xls,.csv,.tsv" required><p class="muted">เลือกไฟล์แบบประเมินจากเครื่อง</p></div><div><label>เลือกหมวดเอง ถ้าต้องการบังคับหมวด</label><select name="categoryOverride" id="categoryOverride"><option value="">ให้ระบบจำแนกอัตโนมัติ</option><option>นภาภิบาล</option><option>คุณลักษณะทางทหาร</option><option>เดินทางไกล</option><option>ทหาร_1_4</option><option>จิตอาสา</option><option>เจตคติ</option><option>อาจารย์ที่ปรึกษา</option><option>SMART_NURSE</option><option>อุทธรณ์ร้องทุกข์</option><option>การรักษาความลับ</option><option>บริการข้อมูล</option><option>สุขภาพชมรมกีฬา</option><option>สร้างสรรค์กล้าหาญอดทน</option></select><p class="muted">ถ้าไม่เลือก ระบบจะดูจากชื่อไฟล์และหัวรายงาน</p></div></div><button type="button" onclick="uploadOnly()">อัปโหลดเข้า Drive อย่างเดียว</button><button type="button" class="danger" onclick="uploadAndProcess()">อัปโหลด + แปลง + ประมวลผลทันที</button><button type="button" class="secondary" onclick="refreshStatus()">รีเฟรชรายการไฟล์</button></form><div id="status" class="status">พร้อมใช้งาน</div></section><section class="card"><h2>ไฟล์ที่รอใน Drive</h2><button onclick="refreshStatus()">รีเฟรชรายการไฟล์</button><button class="danger" onclick="processPending()">ประมวลผลไฟล์รอคิว</button><div id="fileTable"></div></section><section class="card"><h2>ผลลัพธ์ / Debug</h2><pre id="output">พร้อมใช้งาน</pre></section></main><script>function setStatus(m,c){var e=document.getElementById('status');e.textContent=m;e.className='status '+(c||'')}function print(o){document.getElementById('output').textContent=JSON.stringify(o,null,2)}function uploadOnly(){var f=document.getElementById('uploadForm');if(!document.getElementById('rawFile').files.length){setStatus('กรุณาเลือกไฟล์ก่อน','warn');return}setStatus('กำลังอัปโหลดเข้า Google Drive...','warn');google.script.run.withSuccessHandler(function(r){setStatus('อัปโหลดสำเร็จ','ok');print(r);refreshStatus()}).withFailureHandler(showError).uploadOnly(f)}function uploadAndProcess(){var f=document.getElementById('uploadForm');if(!document.getElementById('rawFile').files.length){setStatus('กรุณาเลือกไฟล์ก่อน','warn');return}if(!confirm('ยืนยันอัปโหลดและประมวลผลไฟล์นี้ทันที?'))return;setStatus('กำลังอัปโหลด แปลงไฟล์ และประมวลผล...','warn');google.script.run.withSuccessHandler(function(r){setStatus('ประมวลผลสำเร็จ','ok');print(r);refreshStatus()}).withFailureHandler(showError).uploadAndProcess(f)}function processPending(){if(!confirm('ยืนยันประมวลผลไฟล์ที่รอคิวทั้งหมด?'))return;setStatus('กำลังประมวลผลไฟล์รอคิว...','warn');google.script.run.withSuccessHandler(function(r){setStatus('ประมวลผลคิวเสร็จ','ok');print(r);refreshStatus()}).withFailureHandler(showError).processPendingRawFiles()}function refreshStatus(){google.script.run.withSuccessHandler(function(r){renderFiles(r.pendingFiles||[]);print(r)}).withFailureHandler(showError).getSystemStatus()}function renderFiles(files){var rows=files.map(function(f){return '<tr><td>'+esc(f.name)+'</td><td>'+(f.supported?'YES':'NO')+'</td><td><a href="'+f.url+'" target="_blank">เปิด</a></td></tr>'}).join('');document.getElementById('fileTable').innerHTML='<table><thead><tr><th>ชื่อไฟล์</th><th>รองรับ</th><th>ลิงก์</th></tr></thead><tbody>'+(rows||'<tr><td colspan="3">ไม่พบไฟล์รอคิว</td></tr>')+'</tbody></table>'}function showError(err){setStatus('ERROR: '+(err.message||err),'warn');print({error:String(err&&err.stack?err.stack:err)})}function esc(s){return String(s).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]})}refreshStatus();</script></body></html>`;
+}
