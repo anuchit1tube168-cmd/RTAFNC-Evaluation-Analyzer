@@ -10,6 +10,9 @@ on:
 jobs:
   deploy-apps-script:
     runs-on: ubuntu-latest
+    env:
+      DEFAULT_DEPLOYMENT_ID: AKfycbz3Uq3oJtOu95URz2HfcgdPnoRYPdaJfFoRi1Eh9-9sRkTx-_iEODKFNN903N0BcVQq
+      APPS_SCRIPT_DEPLOYMENT_ID: ${{ secrets.APPS_SCRIPT_DEPLOYMENT_ID }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,6 +38,16 @@ jobs:
         working-directory: gas-dist
         run: clasp push --force
 
-      - name: Create Apps Script version
+      - name: Create Apps Script version and redeploy Web App
         working-directory: gas-dist
-        run: clasp version "GitHub deploy ${{ github.sha }}"
+        run: |
+          VERSION_OUTPUT=$(clasp version "GitHub deploy ${{ github.sha }}")
+          echo "$VERSION_OUTPUT"
+          VERSION_NUMBER=$(echo "$VERSION_OUTPUT" | grep -Eo '[0-9]+' | tail -1)
+          if [ -z "$VERSION_NUMBER" ]; then
+            echo "Could not parse Apps Script version number"
+            exit 1
+          fi
+          DEPLOYMENT_ID="${APPS_SCRIPT_DEPLOYMENT_ID:-$DEFAULT_DEPLOYMENT_ID}"
+          echo "Redeploying Apps Script deployment: $DEPLOYMENT_ID with version: $VERSION_NUMBER"
+          clasp redeploy "$DEPLOYMENT_ID" "$VERSION_NUMBER" "GitHub redeploy ${{ github.sha }}"
