@@ -1,0 +1,3 @@
+v5 per-class export
+signature section
+remove class-year summary
