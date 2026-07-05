@@ -33,48 +33,57 @@
 
 ## Phase 3 — Per-class Exports
 
+สถานะ: ทำแล้วใน `createOutputWorkbook_` (REPORT_GROUPS + แยก subset ตาม year)
+
 ```text
-[ ] สร้างกลุ่ม รวมชั้นปี 1-4
-[ ] สร้างกลุ่มปี 1
-[ ] สร้างกลุ่มปี 2
-[ ] สร้างกลุ่มปี 3
-[ ] สร้างกลุ่มปี 4
-[ ] ถ้าปีใดไม่มีข้อมูล ให้ QA_Log = REVIEW แต่ยังสร้าง report เปล่าพร้อมหมายเหตุ
+[x] สร้างกลุ่ม รวมชั้นปี 1-4
+[x] สร้างกลุ่มปี 1
+[x] สร้างกลุ่มปี 2
+[x] สร้างกลุ่มปี 3
+[x] สร้างกลุ่มปี 4
+[x] ถ้าปีใดไม่มีข้อมูล ให้ QA_Log = REVIEW แต่ยังสร้าง report เปล่าพร้อมหมายเหตุ
 ```
 
 ## Phase 4 — PDF Reports
 
+สถานะ: ทำแล้วใน `writePrintGroup_` / `buildRecommendations_` + export 5 PDF ใน `processOneFile_`
+
 ```text
-[ ] สร้าง Print_Report_รวม
-[ ] สร้าง Print_Report_ปี1
-[ ] สร้าง Print_Report_ปี2
-[ ] สร้าง Print_Report_ปี3
-[ ] สร้าง Print_Report_ปี4
-[ ] ตัด section สรุปตามชั้นปีออก
-[ ] เพิ่มข้อเสนอแนะการปรับปรุงจากข้อที่ X ต่ำสุด
-[ ] เพิ่มช่องลายเซ็น 3 ช่อง
-[ ] export เฉพาะ gid ของ Print_Report_* เป็น PDF
+[x] สร้าง Print_Report_รวม
+[x] สร้าง Print_Report_ปี1
+[x] สร้าง Print_Report_ปี2
+[x] สร้าง Print_Report_ปี3
+[x] สร้าง Print_Report_ปี4
+[x] ตัด section สรุปตามชั้นปีออก (ใช้ไฟล์แยกรายชั้นปีแทน)
+[x] เพิ่มข้อเสนอแนะการปรับปรุงจากข้อที่ X ต่ำสุด (3 ข้อ)
+[x] เพิ่มช่องลายเซ็น 3 ช่อง (ผู้จัดทำ/ผู้ตรวจสอบ/ผู้อนุมัติ)
+[x] export เฉพาะ gid ของ Print_Report_* เป็น PDF (5 ไฟล์)
 ```
 
 ## Phase 5 — Comments Theme Analysis
 
+สถานะ: ทำแล้วใน `pAnalyzeComments_` + `writeCommentsThemes_`
+
 ```text
-[ ] ตรวจว่ามีข้อคิดเห็นหรือไม่
-[ ] ถ้ามี ให้สร้าง Comments_Themes
-[ ] สรุป theme / จำนวน / ร้อยละ / ตัวอย่างข้อความ
-[ ] เอา theme สำคัญไปใช้ในข้อเสนอแนะการปรับปรุง
+[x] ตรวจว่ามีข้อคิดเห็นหรือไม่ (ตัด "-"/"ไม่มี" ออก)
+[x] ถ้ามี ให้สร้าง Comments_Themes
+[x] สรุป theme / จำนวน / ร้อยละ / ตัวอย่างข้อความ
+[x] เอา theme สำคัญไปใช้ในข้อเสนอแนะการปรับปรุง (รายงานรวม)
 ```
 
 ## Phase 6 — QA Gate
 
+สถานะ: QA_Log ตรวจอัตโนมัติหลายรายการแล้ว (parseMode, หัวข้อจริง, ผู้ตอบซ้ำ, รายชั้นปี,
+PDF ครบ 5, ข้อเสนอแนะ, ลายเซ็น, Comments) — ยังต้องรันจริงเทียบ Golden Examples
+
 ```text
-[ ] ตรวจ sheet ครบ
-[ ] ตรวจไม่มี formula error
-[ ] ตรวจ PDF ครบ 5 ไฟล์
-[ ] ตรวจหัวข้อ Excel/PDF ตรงกัน
-[ ] ตรวจไม่มีสรุปตามชั้นปีใน PDF
-[ ] ตรวจมีข้อเสนอแนะและลายเซ็น
-[ ] ตรวจเทียบ Golden Examples
+[x] ตรวจ sheet ครบ (Item_Dictionary/Items_X_SD/Individual_All_Items/Comments_Themes/Print_Report_*)
+[x] ตรวจไม่มี formula error (Individual ใช้ค่าคำนวณ, ScoreRows หุ้ม IFERROR)
+[x] ตรวจ PDF ครบ 5 ไฟล์
+[~] ตรวจหัวข้อ Excel/PDF ตรงกัน (หัวรายงานใช้ a.title ร่วมกัน — ควรตรวจตอนรันจริง)
+[x] ตรวจไม่มีสรุปตามชั้นปีใน PDF
+[x] ตรวจมีข้อเสนอแนะและลายเซ็น
+[ ] ตรวจเทียบ Golden Examples (ต้องรันกับไฟล์จริงบน Apps Script)
 ```
 
 ## Done Criteria

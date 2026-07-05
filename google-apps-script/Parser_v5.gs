@@ -101,6 +101,71 @@ function pPersonStats_(scores) {
   return { n: v.length, mean: pRound2_(m), sd: pRound2_(pSdSample_(v)), level: v.length ? pLevel_(m) : '' };
 }
 
+/** คำนวณ N/X/SD/ระดับ รายข้อ สำหรับผู้ตอบชุดย่อย (เช่น แยกรายชั้นปี) */
+function pComputeItemStatsForRespondents_(items, respondents) {
+  return (items || []).map((item, i) => {
+    const vals = [];
+    (respondents || []).forEach(p => { const v = p.scores ? p.scores[i] : undefined; if (pIsValidScore_(v)) vals.push(v); });
+    const m = pMean_(vals);
+    return {
+      no: item.no, code: item.code, text: item.text, col: item.col,
+      n: vals.length, mean: pRound2_(m), sd: pRound2_(pSdSample_(vals)), level: vals.length ? pLevel_(m) : ''
+    };
+  });
+}
+
+/** สถิติรวมของผู้ตอบชุดย่อย */
+function pOverallStats_(respondents) {
+  const all = [];
+  (respondents || []).forEach(p => (p.scores || []).forEach(v => { if (pIsValidScore_(v)) all.push(v); }));
+  const m = pMean_(all);
+  return { n: all.length, respondents: (respondents || []).length, mean: pRound2_(m), sd: pRound2_(pSdSample_(all)), level: all.length ? pLevel_(m) : '' };
+}
+
+/** ข้อที่คะแนนต่ำสุด k ข้อ (เฉพาะข้อที่มีผู้ตอบ) เพื่อใช้เป็นข้อเสนอแนะการปรับปรุง */
+function pLowestItems_(itemStats, k) {
+  return (itemStats || []).filter(s => s.n > 0).slice().sort((a, b) => a.mean - b.mean).slice(0, k || 3);
+}
+
+/** ธีมข้อคิดเห็น (keyword-based) สำหรับ Comments_Themes */
+const PARSER_COMMENT_THEMES = [
+  { theme: 'การเรียนการสอน/เนื้อหา', regex: /(สอน|เนื้อหา|บรรยาย|อธิบาย|เข้าใจ|วิชา|ครู|อาจารย์)/ },
+  { theme: 'เวลา/ตารางเวลา', regex: /(เวลา|ตาราง|นาน|เร็ว|ช้า|กระชั้น|พัก)/ },
+  { theme: 'สถานที่/อุปกรณ์', regex: /(สถานที่|ห้อง|อุปกรณ์|เครื่อง|สัญญาณ|อากาศ|ร้อน|เสียง)/ },
+  { theme: 'อาหาร/สวัสดิการ', regex: /(อาหาร|น้ำ|สวัสดิการ|ที่พัก|เครื่องดื่ม)/ },
+  { theme: 'กิจกรรม/การฝึก', regex: /(กิจกรรม|ฝึก|เดินทาง|ภาคสนาม|ค่าย)/ },
+  { theme: 'ชื่นชม/พึงพอใจ', regex: /(ดีมาก|ดี|ชอบ|ประทับใจ|ขอบคุณ|เยี่ยม|สนุก|พอใจ)/ }
+];
+
+/** ข้อคิดเห็นที่มีสาระ (ตัด "-", "ไม่มี", "N/A") ออก แต่ไม่ทิ้งข้อความจริง */
+function pIsMeaningfulComment_(s) {
+  const t = pTrim_(s).replace(/[\s\-\.]/g, '');
+  if (!t) return false;
+  if (/^(ไม่มี|ไม่มีค่ะ|ไม่มีครับ|ไม่มีข้อเสนอแนะ|ไม่มีความคิดเห็น|ไม่มีเพิ่มเติม|na|none)$/i.test(t)) return false;
+  return true;
+}
+
+/** วิเคราะห์ข้อคิดเห็น: theme / จำนวน / ร้อยละ / ตัวอย่างข้อความ */
+function pAnalyzeComments_(respondents) {
+  const comments = (respondents || []).map(p => pTrim_(p.comment)).filter(pIsMeaningfulComment_);
+  const total = comments.length;
+  const buckets = {};
+  comments.forEach(c => {
+    let theme = 'อื่น ๆ';
+    for (let i = 0; i < PARSER_COMMENT_THEMES.length; i++) {
+      if (PARSER_COMMENT_THEMES[i].regex.test(c)) { theme = PARSER_COMMENT_THEMES[i].theme; break; }
+    }
+    (buckets[theme] = buckets[theme] || []).push(c);
+  });
+  const themes = Object.keys(buckets).map(t => ({
+    theme: t,
+    count: buckets[t].length,
+    percent: total ? pRound2_(buckets[t].length * 100 / total) : 0,
+    examples: buckets[t].slice(0, 2)
+  })).sort((a, b) => b.count - a.count);
+  return { total: total, themes: themes };
+}
+
 /** ดึงรหัสข้อ เช่น "1.1", "12" จากต้นข้อความหัวข้อ (ถ้ามี) */
 function pItemCode_(header) {
   const m = pTrim_(header).match(/^(\d+(?:\.\d+)?)/);
@@ -320,6 +385,11 @@ if (typeof module !== 'undefined' && module.exports) {
     pIsValidScore_: pIsValidScore_,
     pToNum_: pToNum_,
     pShortText_: pShortText_,
-    pPersonStats_: pPersonStats_
+    pPersonStats_: pPersonStats_,
+    pComputeItemStatsForRespondents_: pComputeItemStatsForRespondents_,
+    pOverallStats_: pOverallStats_,
+    pLowestItems_: pLowestItems_,
+    pAnalyzeComments_: pAnalyzeComments_,
+    pIsMeaningfulComment_: pIsMeaningfulComment_
   };
 }

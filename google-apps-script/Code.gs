@@ -34,6 +34,15 @@ const CATEGORY_RULES = [
   { category: 'สร้างสรรค์กล้าหาญอดทน', regex: /(สร้างสรรค์|กล้าหาญ|อดทน)/i }
 ];
 
+// กลุ่มรายงาน: รวมชั้นปี 1-4 และแยกรายชั้นปี 1..4 (Phase 3/4)
+const REPORT_GROUPS = [
+  { key: 'รวม', label: 'รวมชั้นปีที่ 1-4', sheet: 'Print_Report_รวม', pdf: 'รายงานรวมชั้นปีที่ 1-4', year: null },
+  { key: '1', label: 'ชั้นปีที่ 1', sheet: 'Print_Report_ปี1', pdf: 'รายงานชั้นปีที่ 1', year: '1' },
+  { key: '2', label: 'ชั้นปีที่ 2', sheet: 'Print_Report_ปี2', pdf: 'รายงานชั้นปีที่ 2', year: '2' },
+  { key: '3', label: 'ชั้นปีที่ 3', sheet: 'Print_Report_ปี3', pdf: 'รายงานชั้นปีที่ 3', year: '3' },
+  { key: '4', label: 'ชั้นปีที่ 4', sheet: 'Print_Report_ปี4', pdf: 'รายงานชั้นปีที่ 4', year: '4' }
+];
+
 function doGet(e) {
   const p = (e && e.parameter) || {};
   if (p.action || p.callback) return apiGet_(p);
@@ -148,11 +157,15 @@ function processOneFile_(file, categoryOverride) {
     return { ok: true, file: file.getName(), status: 'NEEDS_REVIEW', category: analysis.category, confidence: analysis.confidence, message: 'ย้ายไป 99_ไม่ทราบประเภท' };
   }
   const output = createOutputWorkbook_(analysis);
-  const pdf = exportPdf_(output.spreadsheetId, analysis.safeName + '.pdf', output.printGid);
+  const pdfs = output.groups.map(g => {
+    const p = exportPdf_(output.spreadsheetId, safeName_(g.pdfName + '_ปีการศึกษา_' + CONFIG.ACADEMIC_YEAR) + '.pdf', g.printGid);
+    return { key: g.key, label: g.label, name: g.pdfName, hasData: g.hasData, url: p.url, id: p.id };
+  });
+  const missingYears = output.groups.filter(g => g.year !== null && !g.hasData).map(g => g.label);
   moveFile_(file, CONFIG.PENDING_FOLDER_ID, CONFIG.PROCESSED_FOLDER_ID);
   if (!CONFIG.KEEP_TEMP_SHEETS) DriveApp.getFileById(tempId).setTrashed(true);
-  appendLog_(file.getName(), 'SUCCESS', analysis.category, 'processed', output.url, pdf.url);
-  return { ok: true, file: file.getName(), status: 'SUCCESS', category: analysis.category, confidence: analysis.confidence, parseMode: analysis.parseMode, respondentCount: analysis.respondentCount, duplicateCount: (analysis.duplicates || []).length, itemCount: analysis.items.length, scoreRows: analysis.scoreRows.length, mean: round2_(analysis.overallMean), sd: round2_(analysis.overallSd), outputSpreadsheetUrl: output.url, pdfUrl: pdf.url };
+  appendLog_(file.getName(), 'SUCCESS', analysis.category, 'processed (' + pdfs.length + ' PDFs' + (missingYears.length ? ', ไม่มีข้อมูล: ' + missingYears.join(', ') : '') + ')', output.url, pdfs.length ? pdfs[0].url : '');
+  return { ok: true, file: file.getName(), status: 'SUCCESS', category: analysis.category, confidence: analysis.confidence, parseMode: analysis.parseMode, respondentCount: analysis.respondentCount, duplicateCount: (analysis.duplicates || []).length, itemCount: analysis.items.length, scoreRows: analysis.scoreRows.length, mean: round2_(analysis.overallMean), sd: round2_(analysis.overallSd), outputSpreadsheetUrl: output.url, pdfUrl: pdfs.length ? pdfs[0].url : '', pdfUrls: pdfs.map(p => ({ name: p.name, hasData: p.hasData, url: p.url })), missingYears: missingYears };
 }
 
 function convertToGoogleSheet_(file) {
@@ -271,8 +284,19 @@ function createOutputWorkbook_(a) {
   const items = ss.insertSheet('Items_X_SD');
   const indiv = ss.insertSheet('Individual_All_Items');
   const rows = ss.insertSheet('ScoreRows');
-  const qa = ss.insertSheet('QA_Log');
-  const print = ss.insertSheet('Print_Report');
+
+  // วิเคราะห์ข้อคิดเห็น และเตรียมข้อมูลแยกกลุ่มชั้นปี
+  const commentAnalysis = pAnalyzeComments_(a.respondents || []);
+  const groups = REPORT_GROUPS.map(g => {
+    const subset = g.year ? (a.respondents || []).filter(r => r.year === g.year) : (a.respondents || []);
+    return {
+      def: g, subset: subset,
+      stats: pComputeItemStatsForRespondents_(a.items || [], subset),
+      overall: pOverallStats_(subset),
+      hasData: subset.length > 0
+    };
+  });
+
   writeCover_(cover, a);
   writeExecutive_(executive, a);
   writeDashboard_(dash, a);
@@ -280,12 +304,36 @@ function createOutputWorkbook_(a) {
   writeItems_(items, a.itemStats);
   writeIndividualAllItems_(indiv, a);
   writeScoreRows_(rows, a.scoreRows);
-  writeQa_(qa, a);
-  writePrint_(print, a);
-  ss.getSheets().forEach(applyStyle_);
-  applyPrintStyle_(print);
+
+  // Comments_Themes เฉพาะเมื่อมีข้อคิดเห็น (ห้ามทิ้งข้อความ)
+  let commentsSheet = null;
+  if (commentAnalysis.total > 0) {
+    commentsSheet = ss.insertSheet('Comments_Themes');
+    writeCommentsThemes_(commentsSheet, commentAnalysis);
+  }
+
+  const qa = ss.insertSheet('QA_Log');
+  writeQa_(qa, a, groups, commentAnalysis);
+
+  // Print_Report รายกลุ่ม (รวม + รายชั้นปี 1-4)
+  const printSheets = [];
+  groups.forEach(gr => {
+    const sh = ss.insertSheet(gr.def.sheet);
+    writePrintGroup_(sh, a, gr, commentAnalysis);
+    printSheets.push({ group: gr, sheet: sh });
+  });
+
+  const dataSheets = [cover, executive, dash, dict, items, indiv, rows, qa].concat(commentsSheet ? [commentsSheet] : []);
+  dataSheets.forEach(applyStyle_);
+  printSheets.forEach(ps => applyPrintGroupStyle_(ps.sheet));
   SpreadsheetApp.flush();
-  return { spreadsheetId: ss.getId(), url: ss.getUrl(), printGid: print.getSheetId() };
+
+  const groupsMeta = printSheets.map(ps => ({
+    key: ps.group.def.key, label: ps.group.def.label, year: ps.group.def.year,
+    pdfName: ps.group.def.pdf, printGid: ps.sheet.getSheetId(),
+    respondentCount: ps.group.subset.length, hasData: ps.group.hasData
+  }));
+  return { spreadsheetId: ss.getId(), url: ss.getUrl(), groups: groupsMeta };
 }
 
 function writeCover_(sh, a) {
@@ -390,11 +438,20 @@ function writeScoreRows_(sh, rows) {
   }
 }
 
-function writeQa_(sh,a) {
+function writeQa_(sh, a, groups, commentAnalysis) {
   sh.clear();
   const dupCount = (a.duplicates || []).length;
   const dupDetail = dupCount ? a.duplicates.map(d => d.key + ' x' + d.count).slice(0, 5).join(', ') : 'ไม่พบ';
   const yearDetail = (a.years && a.years.length) ? a.years.map(y => 'ปี' + y.year + '=' + y.count).join(', ') : 'ไม่พบข้อมูลชั้นปี';
+  groups = groups || [];
+  commentAnalysis = commentAnalysis || { total: 0, themes: [] };
+  const yearGroups = groups.filter(g => g.def.year !== null);
+  const yearRows = yearGroups.map(g => [
+    'รายงาน' + g.def.label,
+    g.hasData ? 'PASS' : 'REVIEW',
+    g.hasData ? (g.subset.length + ' คน') : 'ไม่มีข้อมูล (สร้างรายงานเปล่าพร้อมหมายเหตุ)',
+    g.hasData ? 'ตรวจ Print_Report_ปี' + g.def.key : 'ตรวจไฟล์ต้นฉบับว่ามีผู้ตอบชั้นปีนี้หรือไม่'
+  ]);
   const rows = [
     ['รายการ','ผล','รายละเอียด','วิธีแก้ถ้า REVIEW'],
     ['โหมดอ่านข้อมูล', a.parseMode === 'wide' ? 'PASS' : 'REVIEW', a.parseMode === 'wide' ? ('matrix จากชีต ' + (a.sheetName || '')) : 'legacy (หัวข้อเป็นแถว)', 'ถ้า legacy ให้ตรวจว่าไฟล์ต้นฉบับมีหัวคอลัมน์ข้อประเมิน'],
@@ -409,26 +466,100 @@ function writeQa_(sh,a) {
     ['สรุปชั้นปี', 'INFO', yearDetail, 'ใช้สำหรับแยกรายงานรายชั้นปีใน Phase 3'],
     ['สูตร X/SD','PASS',CONFIG.ROUND_MODE+'(...,2) + STDEV.S','ตรวจสูตรใน ScoreRows'],
     ['ฟอนต์','PASS',CONFIG.REPORT_FONT,'ถ้าเครื่องไม่มีฟอนต์ให้ใช้ TH Sarabun New'],
-    ['PDF Print Safe','PASS','Export เฉพาะ Print_Report A4 landscape fit width','เปิด PDF ตรวจว่าตารางไม่ขาดก่อนพิมพ์'],
+    ['PDF Print Safe','PASS','Export เฉพาะ Print_Report_* A4 landscape fit width','เปิด PDF ตรวจว่าตารางไม่ขาดก่อนพิมพ์'],
     ['คำเตือนราชการ','PASS','ต้องตรวจ QA_Log ก่อนใช้จริง','แนบ QA_Log เป็นหลักฐานตรวจสอบ']
   ];
-  sh.getRange(1,1,rows.length,4).setValues(rows);
+  const extraRows = [
+    ['รายงานรวมชั้นปี 1-4', (a.respondents || []).length ? 'PASS' : 'REVIEW', 'Print_Report_รวม + PDF', 'ตรวจว่ามีผู้ตอบอย่างน้อย 1 คน']
+  ].concat(yearRows).concat([
+    ['ตัดสรุปตามชั้นปีใน PDF', 'PASS', 'ใช้ไฟล์แยกรายชั้นปีแทน section สรุป', 'ตรวจว่า PDF ไม่มีตารางสรุปตามชั้นปีปนในไฟล์เดียว'],
+    ['PDF ครบ 5 ไฟล์', groups.length === 5 ? 'PASS' : 'REVIEW', 'รวม + ปี1-4', 'export เฉพาะ gid ของ Print_Report_*'],
+    ['ข้อเสนอแนะการปรับปรุง', 'PASS', 'สร้างจากข้อ X ต่ำสุด 3 ข้อ', 'ตรวจว่ามีหัวข้อข้อเสนอแนะในทุก Print_Report'],
+    ['ช่องลายเซ็น 3 ช่อง', 'PASS', 'ผู้จัดทำ / ผู้ตรวจสอบ / ผู้อนุมัติ', 'ตรวจท้าย Print_Report ทุกไฟล์'],
+    ['ข้อคิดเห็น (Comments_Themes)', commentAnalysis.total > 0 ? 'PASS' : 'INFO', commentAnalysis.total > 0 ? (commentAnalysis.total + ' ราย, ' + commentAnalysis.themes.length + ' ธีม') : 'ไม่พบข้อคิดเห็น จึงไม่สร้าง sheet', 'ถ้ามีข้อคิดเห็นต้องมี theme/จำนวน/ร้อยละ']
+  ]);
+  const finalRows = rows.concat(extraRows);
+  sh.getRange(1,1,finalRows.length,4).setValues(finalRows);
 }
 
-function writePrint_(sh,a) {
+/** สร้างข้อเสนอแนะการปรับปรุงจากข้อที่ X ต่ำสุด (+ ประเด็นข้อคิดเห็นถ้าเป็นรายงานรวม) */
+function buildRecommendations_(stats, commentAnalysis, includeComments) {
+  const out = [];
+  const low = pLowestItems_(stats, 3);
+  if (!low.length) {
+    out.push('ยังไม่มีข้อมูลเพียงพอสำหรับข้อเสนอแนะการปรับปรุงในกลุ่มนี้');
+    return out;
+  }
+  low.forEach((s, i) => {
+    out.push((i + 1) + '. ควรพัฒนา/ปรับปรุง ' + pShortText_(s.code, s.text, 44) + '  (X = ' + s.mean.toFixed(2) + ', ระดับ ' + s.level + ')');
+  });
+  if (includeComments && commentAnalysis && commentAnalysis.total > 0 && commentAnalysis.themes.length) {
+    const t = commentAnalysis.themes[0];
+    out.push('ประเด็นเด่นจากข้อคิดเห็น: ' + t.theme + ' (' + t.count + ' ราย, ' + t.percent + '%)');
+  }
+  return out;
+}
+
+/** รายงานพิมพ์รายกลุ่ม: หัวรายงาน + สรุป + ตารางรายข้อ + ข้อเสนอแนะ + ช่องลายเซ็น 3 ช่อง */
+function writePrintGroup_(sh, a, gr, commentAnalysis) {
   sh.clear();
-  sh.getRange('A1:H1').merge().setValue('รายงานผลการประเมิน ปีการศึกษา '+CONFIG.ACADEMIC_YEAR);
+  const label = gr.def.label;
+  const o = gr.overall;
+  sh.getRange('A1:H1').merge().setValue('รายงานผลการประเมิน ปีการศึกษา ' + CONFIG.ACADEMIC_YEAR);
   sh.getRange('A2:H2').merge().setValue('วิทยาลัยพยาบาลทหารอากาศ กรมแพทย์ทหารอากาศ');
-  sh.getRange('A4:H4').merge().setValue(a.title);
-  sh.getRange('A6:B13').setValues([
-    ['หมวดงาน',a.category], ['ไฟล์ต้นฉบับ',a.rawName], ['จำนวนข้อประเมิน',a.items.length], ['จำนวนแถวคะแนน',a.scoreRows.length], ['ค่าเฉลี่ยรวม (X)',round2_(a.overallMean)], ['SD รวม',round2_(a.overallSd)], ['ระดับ',level_(a.overallMean)], ['QA',a.invalidCount === 0 ? 'PASS' : 'REVIEW']
-  ]);
-  sh.getRange('A15:H15').merge().setValue('ตารางสรุปรายข้อประเมิน');
-  sh.getRange(16,1,1,8).setValues([['ลำดับ','รหัสข้อ','ข้อความประเมิน','N','X','SD','ระดับ','หมายเหตุ']]);
-  const rows = a.itemStats.slice(0, 30).map((x,i)=>[i+1,x.no,x.text,x.n,x.mean,x.sd,x.level,'']);
-  if (rows.length) sh.getRange(17,1,rows.length,8).setValues(rows);
-  const noteRow = 18 + rows.length;
-  sh.getRange(noteRow,1,1,8).merge().setValue('หมายเหตุ: รายงานฉบับนี้สร้างจากระบบอัตโนมัติ ควรตรวจ QA_Log และไฟล์ต้นฉบับก่อนนำไปใช้ทางราชการ');
+  sh.getRange('A3:H3').merge().setValue(a.title);
+  sh.getRange('A4:H4').merge().setValue('กลุ่มรายงาน: ' + label + '   |   หมวดงาน: ' + a.category);
+  sh.getRange('A5:H5').merge().setValue('เกณฑ์การประเมิน: 5 = มากที่สุด, 4 = มาก, 3 = ปานกลาง, 2 = น้อย, 1 = น้อยที่สุด');
+  sh.getRange('A6:H6').merge().setValue(
+    'จำนวนผู้ตอบ ' + o.respondents + ' คน    |    จำนวนข้อประเมิน ' + (a.items ? a.items.length : 0) + ' ข้อ    |    ค่าเฉลี่ยรวม (X) = ' + (o.n ? o.mean.toFixed(2) : '-') +
+    '    |    SD รวม = ' + (o.n ? o.sd.toFixed(2) : '-') + '    |    ระดับ: ' + (o.level || '-'));
+
+  sh.getRange('A7:H7').merge().setValue('ตารางสรุปรายข้อประเมิน (X / SD รายข้อ)');
+  sh.getRange(8, 1, 1, 8).setValues([['ลำดับ', 'รหัสข้อ', 'ข้อความประเมิน', 'N', 'X', 'SD', 'ระดับ', 'หมายเหตุ']]);
+  let nextRow;
+  if (gr.hasData && gr.stats.length) {
+    const rows = gr.stats.map((x, i) => [i + 1, x.no, x.text, x.n, (x.n ? x.mean : ''), (x.n ? x.sd : ''), x.level, '']);
+    sh.getRange(9, 1, rows.length, 8).setValues(rows);
+    nextRow = 9 + rows.length + 1;
+  } else {
+    sh.getRange(9, 1, 1, 8).merge().setValue('*** ไม่พบข้อมูลผู้ตอบสำหรับ ' + label + ' — เว้นรายงานนี้ไว้เพื่อความครบถ้วน โปรดตรวจไฟล์ต้นฉบับ (QA = REVIEW) ***');
+    nextRow = 12;
+  }
+
+  sh.getRange(nextRow, 1, 1, 8).merge().setValue('ข้อเสนอแนะการปรับปรุง');
+  nextRow++;
+  buildRecommendations_(gr.stats, commentAnalysis, gr.def.year === null).forEach(t => {
+    sh.getRange(nextRow, 1, 1, 8).merge().setValue(t);
+    nextRow++;
+  });
+
+  nextRow++;
+  sh.getRange(nextRow, 1, 1, 8).merge().setValue('หมายเหตุ: รายงานสร้างจากระบบอัตโนมัติ ควรตรวจ QA_Log และไฟล์ต้นฉบับก่อนนำไปใช้ทางราชการ');
+  nextRow += 2;
+
+  ['ผู้จัดทำรายงาน', 'ผู้ตรวจสอบ', 'ผู้อำนวยการวิทยาลัยพยาบาลทหารอากาศ / ผู้อนุมัติ'].forEach(role => {
+    sh.getRange(nextRow, 1, 1, 8).merge().setValue('ลงชื่อ ....................................................................');
+    nextRow++;
+    sh.getRange(nextRow, 1, 1, 8).merge().setValue('( .................................................................... )');
+    nextRow++;
+    sh.getRange(nextRow, 1, 1, 8).merge().setValue('ตำแหน่ง ' + role);
+    nextRow += 2;
+  });
+}
+
+/** Comments_Themes: ธีม / จำนวน / ร้อยละ / ตัวอย่างข้อความ (Phase 5) */
+function writeCommentsThemes_(sh, ca) {
+  sh.clear();
+  sh.getRange('A1:E1').merge().setValue('สรุปข้อคิดเห็น (จำนวนผู้แสดงความเห็น ' + ca.total + ' ราย)');
+  sh.getRange(2, 1, 1, 5).setValues([['ธีม', 'จำนวน', 'ร้อยละ', 'ตัวอย่างข้อความ', 'ข้อเสนอแนะเชิงปรับปรุง']]);
+  if (ca.themes.length) {
+    const rows = ca.themes.map(t => [
+      t.theme, t.count, t.percent + '%', t.examples.join('  //  '),
+      'พิจารณาปรับปรุงประเด็น: ' + t.theme
+    ]);
+    sh.getRange(3, 1, rows.length, 5).setValues(rows);
+  }
+  sh.getRange('D:E').setWrap(true);
 }
 
 function exportPdf_(spreadsheetId, name, gid) {
@@ -470,17 +601,18 @@ function applyStyle_(sh){
   try { sh.getDataRange().createFilter(); } catch(e) {}
 }
 
-function applyPrintStyle_(sh){
+function applyPrintGroupStyle_(sh){
   sh.setHiddenGridlines(true);
-  sh.getRange('A1:H2').setHorizontalAlignment('center').setFontWeight('bold');
-  sh.getRange('A1:H1').setFontSize(22).setBackground('#0B2347').setFontColor('#FFFFFF');
-  sh.getRange('A2:H2').setFontSize(18).setBackground('#EAF3FF').setFontColor('#0B2347');
-  sh.getRange('A4:H4').setHorizontalAlignment('center').setFontWeight('bold').setFontSize(16).setWrap(true);
-  sh.getRange('A15:H16').setHorizontalAlignment('center').setFontWeight('bold').setBackground('#0B2347').setFontColor('#FFFFFF');
-  const widths = [48,70,420,48,60,60,90,120];
+  const widths = [44,64,404,44,58,58,86,150];
   widths.forEach((w,i)=>sh.setColumnWidth(i+1,w));
-  sh.getRange('A:H').setWrap(true).setVerticalAlignment('middle');
-  sh.getRange('D:H').setHorizontalAlignment('center');
+  sh.getRange('A:H').setFontFamily(CONFIG.REPORT_FONT).setFontSize(13).setWrap(true).setVerticalAlignment('middle');
+  sh.getRange('A1:H1').setFontSize(20).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#0B2347').setFontColor('#FFFFFF');
+  sh.getRange('A2:H2').setFontSize(16).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#EAF3FF').setFontColor('#0B2347');
+  sh.getRange('A3:H4').setFontSize(14).setFontWeight('bold').setHorizontalAlignment('center');
+  sh.getRange('A5:H6').setFontSize(12).setHorizontalAlignment('center');
+  sh.getRange('A7:H7').setFontWeight('bold').setBackground('#EAF3FF').setFontColor('#0B2347').setHorizontalAlignment('center');
+  sh.getRange('A8:H8').setFontWeight('bold').setBackground('#0B2347').setFontColor('#FFFFFF').setHorizontalAlignment('center');
+  sh.getRange('D9:G200').setHorizontalAlignment('center');
 }
 
 function appendLog_(file,status,cat,msg,sheetUrl,pdfUrl){
