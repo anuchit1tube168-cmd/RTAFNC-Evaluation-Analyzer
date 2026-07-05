@@ -390,18 +390,28 @@ function writePrintGroup_(sh, a, gr, comments) {
   sh.getRange('A7:H7').merge().setValue('ตารางสรุปรายข้อประเมิน (X / SD รายข้อ)');
   sh.getRange(8,1,1,8).setValues([['ลำดับ','รหัสข้อ','ข้อความคำถาม','N','X','SD','ระดับ','หมายเหตุ']]);
   const rows = gr.stats.map((x,i)=>[i+1, x.code || x.no, x.text, x.n, x.n ? x.mean : '', x.n ? x.sd : '', x.level, isBadItemText_(x.text) ? 'REVIEW' : '']);
-  if (rows.length) sh.getRange(9,1,rows.length,8).setValues(rows);
+  if (rows.length) {
+    sh.getRange(9,1,rows.length,8).setValues(rows);
+    sh.getRange(8,1,rows.length+1,8).setBorder(true,true,true,true,true,true,'#B7C3D6',SpreadsheetApp.BorderStyle.SOLID);
+    try { sh.getRange(9,1,rows.length,8).applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY,false,false); } catch(e){}
+  }
   let r = 10 + rows.length;
   sh.getRange(r,1,1,8).merge().setValue('ข้อเสนอแนะการปรับปรุง'); r++;
   buildRecommendations_(gr.stats, comments, gr.year === null).forEach(t => { sh.getRange(r,1,1,8).merge().setValue(t); r++; });
   r++;
   sh.getRange(r,1,1,8).merge().setValue('ภาคผนวก: สรุปรายบุคคล (รายละเอียดคะแนนรายข้อครบอยู่ใน Excel: Individual_All_Items)').setFontWeight('bold'); r++;
-  sh.getRange(r,1,1,8).setValues([['ลำดับ','รหัส/เลขที่','ชื่อ-สกุล','ชั้นปี','ตอบ/ทั้งหมด','X','ระดับ','ข้อคิดเห็น']]); r++;
-  const people = gr.subset.slice(0,200).map((p,i)=>{ const st=pPersonStats_(p.scores||[]); return [i+1,p.id||p.seq||'',p.name||'',p.year||'',st.n+'/'+(a.items||[]).length,st.mean,st.level,p.comment||'']; });
-  if (people.length) sh.getRange(r,1,people.length,8).setValues(people);
+  const apxHeader = r;
+  sh.getRange(r,1,1,8).setValues([['ลำดับ','รหัส/เลขที่','ชื่อ-สกุล','ชั้นปี','X','ระดับ','','ข้อคิดเห็น']]);
+  sh.getRange(r,1,1,8).setFontWeight('bold').setBackground('#EAF3FF').setHorizontalAlignment('center'); r++;
+  const people = gr.subset.slice(0,200).map((p,i)=>{ const st=pPersonStats_(p.scores||[]); return [i+1,p.id||p.seq||'',p.name||'',p.year||'',st.n?st.mean:'',st.level,'',p.comment||'']; });
+  if (people.length) {
+    sh.getRange(r,1,people.length,8).setValues(people);
+    sh.getRange(apxHeader,1,people.length+1,8).setBorder(true,true,true,true,true,true,'#B7C3D6',SpreadsheetApp.BorderStyle.SOLID);
+    try { sh.getRange(r,1,people.length,8).applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY,false,false); } catch(e){}
+  }
   r += people.length + 2;
   sh.getRange(r,1,1,8).merge().setValue('หมายเหตุ QA: รายงานนี้ไม่สร้างหรือแยกชั้นปีจากการเดาเอง ทุกชั้นปีต้องมี source ใน Class_Source_Map'); r += 2;
-  ['ผู้จัดทำรายงาน','ผู้ตรวจทาน','ผู้อนุมัติ/ผู้บังคับบัญชา'].forEach(role => { sh.getRange(r,1,1,8).merge().setValue('ลงชื่อ ............................................................'); r++; sh.getRange(r,1,1,8).merge().setValue('( ' + role + ' )'); r += 2; });
+  ['ผู้รับการประเมิน','หน.ผปค.วพอ.พอ.'].forEach(role => { sh.getRange(r,1,1,8).merge().setValue('ลงชื่อ ....................................................................'); r++; sh.getRange(r,1,1,8).merge().setValue('( .................................................................... )'); r++; sh.getRange(r,1,1,8).merge().setValue(role); r += 2; });
 }
 
 function buildRecommendations_(stats, commentAnalysis, includeComments) {
@@ -457,6 +467,8 @@ function applyPrintGroupStyle_(sh){
   sh.getRange('A1:H2').setHorizontalAlignment('center').setFontWeight('bold');
   sh.getRange('A1:H1').setFontSize(21).setBackground('#0B2347').setFontColor('#FFFFFF');
   sh.getRange('A2:H2').setFontSize(17).setBackground('#EAF3FF').setFontColor('#0B2347');
+  sh.getRange('A2:H2').setBorder(null,null,true,null,null,null,'#D6A94A',SpreadsheetApp.BorderStyle.SOLID_THICK);
+  sh.getRange('A6:H6').setBorder(null,null,true,null,null,null,'#B7C3D6',SpreadsheetApp.BorderStyle.SOLID);
   sh.getRange('A7:H8').setHorizontalAlignment('center').setFontWeight('bold').setBackground('#0B2347').setFontColor('#FFFFFF');
   [44,62,430,48,68,58,90,130].forEach((w,i)=>sh.setColumnWidth(i+1,w));
   sh.getRange('D:H').setHorizontalAlignment('center');
