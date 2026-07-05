@@ -62,6 +62,7 @@ function apiGet_(p) {
     else if (action === 'selftest') result = selfTest_();
     else if (action === 'selfexport') result = selfExport_();
     else if (action === 'peek') result = peekFile_(p.fileId);
+    else if (action === 'exportreal') result = exportRealFile_(p.fileId);
     else result = getHealth_();
   } catch (err) {
     result = { ok: false, error: String(err && err.stack ? err.stack : err) };
@@ -570,6 +571,8 @@ function writePrintGroup_(sh, a, gr, commentAnalysis) {
   if (gr.hasData && gr.stats.length) {
     const rows = gr.stats.map((x, i) => [i + 1, x.no, x.text, x.n, (x.n ? x.mean : ''), (x.n ? x.sd : ''), x.level, '']);
     sh.getRange(9, 1, rows.length, 8).setValues(rows);
+    sh.getRange(8, 1, rows.length + 1, 8).setBorder(true, true, true, true, true, true, '#B7C3D6', SpreadsheetApp.BorderStyle.SOLID);
+    try { sh.getRange(9, 1, rows.length, 8).applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, false, false); } catch (e) {}
     nextRow = 9 + rows.length + 1;
   } else {
     sh.getRange(9, 1, 1, 8).merge().setValue('*** ไม่พบข้อมูลผู้ตอบสำหรับ ' + label + ' — เว้นรายงานนี้ไว้เพื่อความครบถ้วน โปรดตรวจไฟล์ต้นฉบับ (QA = REVIEW) ***');
@@ -597,6 +600,8 @@ function writePrintGroup_(sh, a, gr, commentAnalysis) {
       return [i + 1, pp.id || pp.seq || '', pp.name || '', pp.year || '', st.n ? st.mean : '', st.level, '', pp.comment || ''];
     });
     sh.getRange(apxHeader + 1, 1, apxRows.length, 8).setValues(apxRows);
+    sh.getRange(apxHeader, 1, apxRows.length + 1, 8).setBorder(true, true, true, true, true, true, '#B7C3D6', SpreadsheetApp.BorderStyle.SOLID);
+    try { sh.getRange(apxHeader + 1, 1, apxRows.length, 8).applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, false, false); } catch (e) {}
     nextRow = apxHeader + 1 + apxRows.length;
     if (gr.subset.length > CAP) {
       sh.getRange(nextRow, 1, 1, 8).merge().setValue('หมายเหตุ: แสดง ' + CAP + ' รายแรกจาก ' + gr.subset.length + ' ราย — ดูรายบุคคลครบใน Excel (Individual_All_Items)');
@@ -681,6 +686,45 @@ function peekFile_(fileId) {
       parse = { found: false, note: 'parser ไม่พบตาราง matrix (อาจเป็นไฟล์ข้อคิดเห็น/รูปแบบอื่น)' };
     }
     return { ok: true, action: 'peek', file: file.getName(), fileId: file.getId(), sheets: sheets, parse: parse };
+  } finally {
+    try { DriveApp.getFileById(tempId).setTrashed(true); } catch (e) {}
+  }
+}
+
+/**
+ * ประมวลผลจากไฟล์จริงในคิว แล้วคืน Excel + PDF (base64) — ?action=exportreal[&fileId=]
+ * ไม่ย้ายไฟล์ต้นฉบับ ไม่บันทึก output ถาวร (ลบ temp + output ทิ้ง) ใช้ดูผลจริงก่อนสั่ง process จริง
+ */
+function exportRealFile_(fileId) {
+  let file;
+  if (fileId) { file = DriveApp.getFileById(fileId); }
+  else {
+    const it = DriveApp.getFolderById(CONFIG.PENDING_FOLDER_ID).getFiles();
+    while (it.hasNext()) { const f = it.next(); if (isSupported_(f.getName()) && f.getSize() > 0) { file = f; break; } }
+  }
+  if (!file) return { ok: false, error: 'ไม่พบไฟล์ที่รองรับในคิว' };
+  const tempId = convertToGoogleSheet_(file);
+  try {
+    const analysis = analyzeSheet_(tempId, file.getName(), '');
+    const output = createOutputWorkbook_(analysis);
+    const gate = pRunQaGate_(analysis, output.groups);
+    let pdfB64 = '', xlsxB64 = '', err = '';
+    try {
+      pdfB64 = Utilities.base64Encode(exportPdfBytes_(output.spreadsheetId, output.groups[0].printGid));
+      xlsxB64 = Utilities.base64Encode(exportXlsxBytes_(output.spreadsheetId));
+    } catch (e) { err = String(e); }
+    finally { try { DriveApp.getFileById(output.spreadsheetId).setTrashed(true); } catch (e2) {} }
+    return {
+      ok: !err, action: 'exportreal', file: file.getName(), fileId: file.getId(),
+      qaStatus: gate.status, qaFailures: gate.failures, qaWarnings: gate.warnings,
+      category: analysis.category, parseMode: analysis.parseMode,
+      itemCount: analysis.items.length, respondentCount: analysis.respondentCount,
+      years: analysis.years, duplicates: (analysis.duplicates || []).length, invalidCount: analysis.invalidCount,
+      sampleItems: analysis.items.slice(0, 6).map(function (it) { return it.no + ' ' + it.text; }),
+      pdfGroups: output.groups.map(function (g) { return { label: g.label, hasData: g.hasData, n: g.respondentCount }; }),
+      xlsxBase64: xlsxB64, pdfBase64: pdfB64, error: err,
+      note: 'ประมวลผลจากไฟล์จริงในคิว ไม่ย้ายไฟล์/ไม่บันทึกถาวร (ลบ temp+output ทิ้ง) — ใช้ action=process เพื่อประมวลผลจริงและบันทึกลง Drive'
+    };
   } finally {
     try { DriveApp.getFileById(tempId).setTrashed(true); } catch (e) {}
   }
@@ -795,8 +839,11 @@ function applyPrintGroupStyle_(sh){
   sh.getRange('A:H').setFontFamily(CONFIG.REPORT_FONT).setFontSize(13).setWrap(true).setVerticalAlignment('middle');
   sh.getRange('A1:H1').setFontSize(20).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#0B2347').setFontColor('#FFFFFF');
   sh.getRange('A2:H2').setFontSize(16).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#EAF3FF').setFontColor('#0B2347');
+  // เส้นคั่น accent สีทองใต้ชื่อหน่วยงาน (SKILL §13)
+  sh.getRange('A2:H2').setBorder(null, null, true, null, null, null, '#D6A94A', SpreadsheetApp.BorderStyle.SOLID_THICK);
   sh.getRange('A3:H4').setFontSize(14).setFontWeight('bold').setHorizontalAlignment('center');
   sh.getRange('A5:H6').setFontSize(12).setHorizontalAlignment('center');
+  sh.getRange('A6:H6').setBorder(null, null, true, null, null, null, '#B7C3D6', SpreadsheetApp.BorderStyle.SOLID);
   sh.getRange('A7:H7').setFontWeight('bold').setBackground('#EAF3FF').setFontColor('#0B2347').setHorizontalAlignment('center');
   sh.getRange('A8:H8').setFontWeight('bold').setBackground('#0B2347').setFontColor('#FFFFFF').setHorizontalAlignment('center');
   sh.getRange('D9:G200').setHorizontalAlignment('center');
