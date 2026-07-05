@@ -1,0 +1,301 @@
+/**
+ * RTAFNC Evaluation Analyzer — Parser v5 (wide/matrix form)
+ *
+ * ตัวแยกข้อมูลแบบ "หัวข้อประเมินเป็นหัวคอลัมน์ และผู้ตอบเป็นรายแถว"
+ * ซึ่งเป็นรูปแบบไฟล์ดิบจาก Google Forms / Excel ที่ใช้จริงในงาน วพอ.พอ.
+ *
+ * เป้าหมาย (Phase 1 — NEXT_ENGINEERING_TASKS):
+ *   - ตรวจหาแถว header: เลขที่ / รหัส / ชื่อ-สกุล / อีเมล / ชั้นปี
+ *   - ตรวจหาคอลัมน์คะแนนข้อ 1..n โดยไม่นับ เลขที่/ชั้นปี/รหัส เป็นคะแนน
+ *   - ใช้ "ข้อความคำถามจริง" จากหัวคอลัมน์ ไม่สร้าง Q1/คอลัมน์_4
+ *   - clean ชื่อไทย ไม่ให้ถูกตัดผิดช่อง และไม่สร้างคอลัมน์ยศเอง
+ *   - ตรวจคะแนนนอกช่วง 1–5 และตรวจ duplicate respondent
+ *
+ * ไฟล์นี้เป็น pure logic ล้วน (รับ 2D array) เพื่อให้ทดสอบนอก Apps Script ได้
+ * และตั้งชื่อ helper แบบไม่ชนกับฟังก์ชันเดิมใน Code.gs (ใช้ prefix p...)
+ */
+
+/** โทเคนหัวคอลัมน์ที่ใช้จำแนกบทบาทของคอลัมน์ (metadata) */
+const PARSER_HEADER_ROLES = [
+  { role: 'timestamp', regex: /(ประทับเวลา|timestamp|เวลาบันทึก|วันที่ตอบ)/i },
+  { role: 'email',     regex: /(อีเมล|อี-?เมล|e-?mail)/i },
+  { role: 'comment',   regex: /(ข้อคิดเห็น|ข้อเสนอแนะ|ความคิดเห็น|comment|suggestion|เพิ่มเติม|อื่น\s*ๆ)/i },
+  { role: 'year',      regex: /(ชั้นปี|ระดับชั้น|ชั้นปีที่|^\s*ปี\s*$|^\s*ปีที่|นักเรียนชั้นปี)/i },
+  { role: 'rank',      regex: /(^\s*ยศ\s*$|ชั้นยศ|ยศ\s*\/|\bยศ\b)/i },
+  { role: 'id',        regex: /(รหัสนักศึกษา|รหัส\s*นศ|รหัสประจำตัว|รหัส|student\s*id|^\s*id\s*$)/i },
+  { role: 'seq',       regex: /(เลขที่|ลำดับที่|^\s*ลำดับ\s*$|^\s*ที่\s*$)/i },
+  { role: 'name',      regex: /(ชื่อ-?สกุล|ชื่อ-?นามสกุล|ชื่อสกุล|นามสกุล|ชื่อ|สกุล|ชื่อ-ชื่อสกุล)/i }
+];
+
+/** แปลงค่า cell ให้เป็นตัวเลขถ้าเป็นไปได้ ไม่งั้นคืน NaN */
+function pToNum_(v) {
+  if (typeof v === 'number' && isFinite(v)) return v;
+  const s = String(v == null ? '' : v).trim();
+  if (s === '') return NaN;
+  return /^-?\d+(?:\.\d+)?$/.test(s) ? Number(s) : NaN;
+}
+
+/** คะแนนที่ใช้ได้ต้องเป็นตัวเลขในช่วง 1–5 */
+function pIsValidScore_(n) { return typeof n === 'number' && isFinite(n) && n >= 1 && n <= 5; }
+
+function pTrim_(v) { return String(v == null ? '' : v).trim(); }
+
+function pMean_(a) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0; }
+
+function pSdSample_(a) {
+  if (a.length < 2) return 0;
+  const m = pMean_(a);
+  return Math.sqrt(a.reduce((s, v) => s + Math.pow(v - m, 2), 0) / (a.length - 1));
+}
+
+function pRound2_(v) { return Math.round((v + Number.EPSILON) * 100) / 100; }
+
+function pLevel_(m) {
+  if (m >= 4.51) return 'มากที่สุด';
+  if (m >= 3.51) return 'มาก';
+  if (m >= 2.51) return 'ปานกลาง';
+  if (m >= 1.51) return 'น้อย';
+  return 'น้อยที่สุด';
+}
+
+/**
+ * clean ชื่อไทย: รวมช่องว่างซ้ำ ตัดช่องว่างหัวท้าย ลบอักขระ zero-width
+ * ไม่ตัดคำ ไม่แยกตัวอักษร เพื่อไม่ให้เกิดปัญหา "กชกร -> จ + ชกร"
+ */
+function pCleanThaiName_(s) {
+  return String(s == null ? '' : s)
+    .replace(/[​‌‍﻿]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** ดึงเลขชั้นปี 1–4 จากข้อความ เช่น "ชั้นปีที่ 2", "ปี 2", "2" */
+function pNormalizeYear_(v) {
+  const s = pTrim_(v);
+  if (!s) return '';
+  const m = s.match(/([1-4])/);
+  return m ? m[1] : s;
+}
+
+function pIsEmail_(v) { return /@/.test(pTrim_(v)) && /\.[a-z]{2,}/i.test(pTrim_(v)); }
+
+/** ดึงรหัสข้อ เช่น "1.1", "12" จากต้นข้อความหัวข้อ (ถ้ามี) */
+function pItemCode_(header) {
+  const m = pTrim_(header).match(/^(\d+(?:\.\d+)?)/);
+  return m ? m[1] : '';
+}
+
+/**
+ * จำแนกบทบาทของแต่ละคอลัมน์ โดยใช้ header (display) และตัวอย่างข้อมูล (values)
+ * คืน array ของ { index, header, role }
+ * role ที่เป็นไปได้: timestamp, email, comment, year, rank, id, seq, name, score, other
+ */
+function pClassifyColumns_(headerRow, dataRowsValues, dataRowsDisplay) {
+  const nCols = headerRow.length;
+  const cols = [];
+  for (let c = 0; c < nCols; c++) {
+    const header = pTrim_(headerRow[c]);
+    let role = 'other';
+
+    // 1) จำแนกจากหัวคอลัมน์ก่อน (เชื่อ header มากกว่าค่าในเซลล์)
+    for (let i = 0; i < PARSER_HEADER_ROLES.length; i++) {
+      if (header && PARSER_HEADER_ROLES[i].regex.test(header)) { role = PARSER_HEADER_ROLES[i].role; break; }
+    }
+
+    // 2) ถ้ายังไม่รู้บทบาท ดูจากค่าจริงในคอลัมน์ว่าเป็นคะแนน 1–5 หรือไม่
+    if (role === 'other') {
+      let nonEmpty = 0, validScore = 0, emailHit = 0;
+      for (let r = 0; r < dataRowsValues.length; r++) {
+        const disp = pTrim_(dataRowsDisplay[r][c]);
+        if (disp === '') continue;
+        nonEmpty++;
+        if (pIsValidScore_(pToNum_(dataRowsValues[r][c]))) validScore++;
+        if (pIsEmail_(disp)) emailHit++;
+      }
+      if (nonEmpty > 0 && emailHit / nonEmpty >= 0.6) role = 'email';
+      else if (nonEmpty > 0 && validScore / nonEmpty >= 0.6) role = 'score';
+    }
+
+    cols.push({ index: c, header: header, role: role });
+  }
+  return cols;
+}
+
+/**
+ * ประเมินว่าแถวใดคือ header ที่ดีที่สุด (0..maxScan) โดยลองใช้แต่ละแถวเป็น header
+ * แล้ววัดว่าจำแนกได้กี่คอลัมน์คะแนน และมีผู้ตอบกี่คน
+ * คืน { headerRowIndex, columns, quality } หรือ headerRowIndex = -1 ถ้าไม่พบ
+ */
+function pDetectHeader_(values, display) {
+  const maxScan = Math.min(20, values.length);
+  let best = { headerRowIndex: -1, columns: null, quality: -1 };
+  for (let r = 0; r < maxScan; r++) {
+    const headerRow = display[r] || [];
+    const nonEmptyHeader = headerRow.filter(x => pTrim_(x) !== '').length;
+    if (nonEmptyHeader < 2) continue;
+
+    const dataV = values.slice(r + 1);
+    const dataD = display.slice(r + 1);
+    if (!dataV.length) continue;
+
+    const cols = pClassifyColumns_(headerRow, dataV, dataD);
+    const scoreCols = cols.filter(x => x.role === 'score');
+    if (!scoreCols.length) continue;
+
+    // นับผู้ตอบ: แถวที่มีคะแนนใช้ได้อย่างน้อย 1 ช่อง
+    let respondents = 0;
+    for (let i = 0; i < dataV.length; i++) {
+      let has = false;
+      for (let j = 0; j < scoreCols.length; j++) {
+        if (pIsValidScore_(pToNum_(dataV[i][scoreCols[j].index]))) { has = true; break; }
+      }
+      if (has) respondents++;
+    }
+    if (!respondents) continue;
+
+    const tokenHits = cols.filter(x => x.role !== 'other' && x.role !== 'score').length;
+    const quality = respondents * scoreCols.length + tokenHits * 2;
+    if (quality > best.quality) best = { headerRowIndex: r, columns: cols, quality: quality };
+  }
+  return best;
+}
+
+/**
+ * แยกข้อมูลจากตารางแบบ matrix ทั้งชีต
+ * @param {Array<Array>} values  ค่าดิบจาก getValues()
+ * @param {Array<Array>} display ค่าที่แสดงจาก getDisplayValues()
+ * @return {Object} ผลการแยก (found=false ถ้าไม่ใช่รูปแบบ matrix)
+ */
+function parseEvaluationMatrix_(values, display) {
+  if (!values || !values.length) return { found: false, quality: -1 };
+  const det = pDetectHeader_(values, display);
+  if (det.headerRowIndex < 0) return { found: false, quality: -1 };
+
+  const cols = det.columns;
+  const headerIdx = det.headerRowIndex;
+  const dataV = values.slice(headerIdx + 1);
+  const dataD = display.slice(headerIdx + 1);
+
+  const scoreCols = cols.filter(x => x.role === 'score');
+  const nameCols = cols.filter(x => x.role === 'name');
+  const idCol = cols.find(x => x.role === 'id');
+  const seqCol = cols.find(x => x.role === 'seq');
+  const emailCol = cols.find(x => x.role === 'email');
+  const yearCol = cols.find(x => x.role === 'year');
+  const rankCol = cols.find(x => x.role === 'rank'); // ใช้ก็ต่อเมื่อมีจริง ไม่สร้างเอง
+  const commentCol = cols.find(x => x.role === 'comment');
+
+  // items = หัวข้อประเมินรายข้อ (ข้อความจริงจากหัวคอลัมน์)
+  const items = scoreCols.map((c, i) => {
+    const code = pItemCode_(c.header);
+    return { no: code || String(i + 1), code: code, text: c.header, col: c.index };
+  });
+
+  // respondents = ผู้ตอบรายคน
+  const respondents = [];
+  let invalidCount = 0;
+  for (let r = 0; r < dataV.length; r++) {
+    const scores = scoreCols.map(c => {
+      const raw = dataV[r][c.index];
+      const disp = pTrim_(dataD[r][c.index]);
+      const n = pToNum_(raw);
+      if (pIsValidScore_(n)) return n;
+      // นับคะแนนนอกช่วง: มีค่าที่ไม่ว่าง ไม่ใช่ 0 และไม่ใช่ 1–5
+      if (disp !== '' && !(isFinite(n) && n === 0)) invalidCount++;
+      return null;
+    });
+    const validScores = scores.filter(pIsValidScore_);
+
+    const nameRaw = nameCols.map(c => pTrim_(dataD[r][c.index])).filter(Boolean).join(' ');
+    const name = pCleanThaiName_(nameRaw);
+    const comment = commentCol ? pTrim_(dataD[r][commentCol.index]) : '';
+
+    // ข้ามแถวว่างจริง ๆ (ไม่มีคะแนน ไม่มีชื่อ ไม่มีข้อคิดเห็น)
+    if (!validScores.length && !name && !comment) continue;
+
+    respondents.push({
+      rowIndex: headerIdx + 1 + r + 1, // เลขแถวจริงในชีต (1-based)
+      seq: seqCol ? pTrim_(dataD[r][seqCol.index]) : '',
+      id: idCol ? pTrim_(dataD[r][idCol.index]) : '',
+      name: name,
+      email: emailCol ? pTrim_(dataD[r][emailCol.index]) : '',
+      year: yearCol ? pNormalizeYear_(dataD[r][yearCol.index]) : '',
+      rank: rankCol ? pTrim_(dataD[r][rankCol.index]) : '',
+      comment: comment,
+      scores: scores,
+      validCount: validScores.length
+    });
+  }
+
+  // itemStats รายข้อ
+  const itemStats = items.map((item, i) => {
+    const vals = [];
+    respondents.forEach(p => { if (pIsValidScore_(p.scores[i])) vals.push(p.scores[i]); });
+    const m = pMean_(vals);
+    return {
+      no: item.no, code: item.code, text: item.text, col: item.col,
+      n: vals.length, mean: pRound2_(m), sd: pRound2_(pSdSample_(vals)), level: pLevel_(m)
+    };
+  });
+
+  // ScoreRows รายคน (aligned กับคอลัมน์คะแนน)
+  const scoreRows = respondents.map((p, i) => ({
+    row: p.rowIndex,
+    label: p.name || p.id || p.seq || ('Row ' + (i + 1)),
+    scores: p.scores.map(v => (pIsValidScore_(v) ? v : ''))
+  }));
+
+  // ค่าเฉลี่ยรวม
+  const all = [];
+  respondents.forEach(p => p.scores.forEach(v => { if (pIsValidScore_(v)) all.push(v); }));
+  const overallMean = pMean_(all);
+  const overallSd = pSdSample_(all);
+
+  // duplicate respondent (key: id > email > name)
+  const seen = {};
+  respondents.forEach(p => {
+    const key = (p.id || p.email || p.name || '').toLowerCase().trim();
+    if (!key) return;
+    (seen[key] = seen[key] || []).push(p.rowIndex);
+  });
+  const duplicates = Object.keys(seen)
+    .filter(k => seen[k].length > 1)
+    .map(k => ({ key: k, count: seen[k].length, rows: seen[k] }));
+
+  // สรุปชั้นปี
+  const yearMap = {};
+  respondents.forEach(p => { const y = p.year; if (y) yearMap[y] = (yearMap[y] || 0) + 1; });
+  const years = Object.keys(yearMap).sort().map(y => ({ year: y, count: yearMap[y] }));
+
+  return {
+    found: true,
+    quality: det.quality,
+    headerRowIndex: headerIdx,
+    columns: cols,
+    hasRankColumn: !!rankCol,
+    hasCommentColumn: !!commentCol,
+    items: items,
+    itemStats: itemStats,
+    respondents: respondents,
+    respondentCount: respondents.length,
+    scoreRows: scoreRows,
+    overallMean: overallMean,
+    overallSd: overallSd,
+    invalidCount: invalidCount,
+    duplicates: duplicates,
+    years: years
+  };
+}
+
+// รองรับการ import ใน Node เพื่อทดสอบ (Apps Script ไม่มี module จึงข้ามบรรทัดนี้)
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    parseEvaluationMatrix_: parseEvaluationMatrix_,
+    pClassifyColumns_: pClassifyColumns_,
+    pDetectHeader_: pDetectHeader_,
+    pCleanThaiName_: pCleanThaiName_,
+    pNormalizeYear_: pNormalizeYear_,
+    pIsValidScore_: pIsValidScore_,
+    pToNum_: pToNum_
+  };
+}

@@ -61,6 +61,7 @@ function getHealth_() {
   return {
     ok: true,
     version: 'v4-print-safe-production',
+    parser: 'wide-matrix-v1',
     uploadUi: ScriptApp.getService().getUrl(),
     driveAdvancedAvailable: !!driveAdvancedAvailable,
     fallbackConversion: 'UrlFetchApp Drive API multipart upload',
@@ -151,7 +152,7 @@ function processOneFile_(file, categoryOverride) {
   moveFile_(file, CONFIG.PENDING_FOLDER_ID, CONFIG.PROCESSED_FOLDER_ID);
   if (!CONFIG.KEEP_TEMP_SHEETS) DriveApp.getFileById(tempId).setTrashed(true);
   appendLog_(file.getName(), 'SUCCESS', analysis.category, 'processed', output.url, pdf.url);
-  return { ok: true, file: file.getName(), status: 'SUCCESS', category: analysis.category, confidence: analysis.confidence, itemCount: analysis.items.length, scoreRows: analysis.scoreRows.length, mean: round2_(analysis.overallMean), sd: round2_(analysis.overallSd), outputSpreadsheetUrl: output.url, pdfUrl: pdf.url };
+  return { ok: true, file: file.getName(), status: 'SUCCESS', category: analysis.category, confidence: analysis.confidence, parseMode: analysis.parseMode, respondentCount: analysis.respondentCount, duplicateCount: (analysis.duplicates || []).length, itemCount: analysis.items.length, scoreRows: analysis.scoreRows.length, mean: round2_(analysis.overallMean), sd: round2_(analysis.overallSd), outputSpreadsheetUrl: output.url, pdfUrl: pdf.url };
 }
 
 function convertToGoogleSheet_(file) {
@@ -188,11 +189,45 @@ function convertToGoogleSheetViaUrlFetch_(blob, name) {
 
 function analyzeSheet_(spreadsheetId, rawName, categoryOverride) {
   const ss = SpreadsheetApp.openById(spreadsheetId);
-  const sh = ss.getSheets()[0];
-  const values = sh.getDataRange().getValues();
-  const display = sh.getDataRange().getDisplayValues();
-  const text = display.flat().filter(Boolean).join(' ');
-  const cat = categoryOverride ? { category: categoryOverride, confidence: 1 } : classify_(rawName + ' ' + text);
+  const sheets = ss.getSheets();
+
+  // อ่านทุก sheet ไม่ใช่ sheet แรกอย่างเดียว แล้วเลือกชีตที่ parse แบบ matrix ได้ดีที่สุด (Parser v5)
+  let allText = '';
+  let best = null;           // { sheet, values, display, parsed }
+  let firstDisplay = null;
+  for (let s = 0; s < sheets.length; s++) {
+    const sh = sheets[s];
+    const values = sh.getDataRange().getValues();
+    const display = sh.getDataRange().getDisplayValues();
+    if (s === 0) firstDisplay = display;
+    allText += ' ' + display.flat().filter(Boolean).join(' ');
+    const parsed = parseEvaluationMatrix_(values, display);
+    if (parsed.found && (!best || parsed.quality > best.parsed.quality)) {
+      best = { sheet: sh, values: values, display: display, parsed: parsed };
+    }
+  }
+
+  const cat = categoryOverride ? { category: categoryOverride, confidence: 1 } : classify_(rawName + ' ' + allText);
+  const safeName = safeName_(['ผลวิเคราะห์', cat.category, 'ปีการศึกษา_' + CONFIG.ACADEMIC_YEAR, Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd')].join('_'));
+
+  if (best) {
+    const p = best.parsed;
+    const items = p.items.map(it => ({ no: it.no, text: it.text, row: it.col + 1 }));
+    const itemStats = p.itemStats.map(x => ({ no: x.no, text: x.text, row: x.col + 1, n: x.n, mean: x.mean, sd: x.sd, level: x.level }));
+    return {
+      rawName: rawName, category: cat.category, confidence: cat.confidence,
+      title: detectTitle_(best.display) || detectTitle_(firstDisplay) || rawName,
+      items: items, itemStats: itemStats, scoreRows: p.scoreRows,
+      overallMean: p.overallMean, overallSd: p.overallSd, invalidCount: p.invalidCount,
+      parseMode: 'wide', sheetName: best.sheet.getName(),
+      respondentCount: p.respondentCount, duplicates: p.duplicates, years: p.years,
+      hasRankColumn: p.hasRankColumn, safeName: safeName
+    };
+  }
+
+  // Fallback: รูปแบบเดิม (หัวข้อเป็นแถว) เมื่อไม่พบตาราง matrix
+  const display = firstDisplay || [];
+  const values = sheets.length ? sheets[0].getDataRange().getValues() : [];
   const items = detectItems_(display);
   const scoreRows = detectScoreRows_(values);
   const itemStats = computeItemStats_(items, scoreRows);
@@ -200,7 +235,15 @@ function analyzeSheet_(spreadsheetId, rawName, categoryOverride) {
   scoreRows.forEach(r => r.scores.forEach(v => all.push(v)));
   const overallMean = all.length ? mean_(all) : 0;
   const overallSd = all.length > 1 ? sdSample_(all) : 0;
-  return { rawName, category: cat.category, confidence: cat.confidence, title: detectTitle_(display) || rawName, items, itemStats, scoreRows, overallMean, overallSd, invalidCount: detectInvalidScores_(values), safeName: safeName_(['ผลวิเคราะห์', cat.category, 'ปีการศึกษา_' + CONFIG.ACADEMIC_YEAR, Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd')].join('_')) };
+  return {
+    rawName: rawName, category: cat.category, confidence: cat.confidence,
+    title: detectTitle_(display) || rawName,
+    items: items, itemStats: itemStats, scoreRows: scoreRows,
+    overallMean: overallMean, overallSd: overallSd, invalidCount: detectInvalidScores_(values),
+    parseMode: 'legacy', sheetName: sheets.length ? sheets[0].getName() : '',
+    respondentCount: scoreRows.length, duplicates: [], years: [],
+    hasRankColumn: false, safeName: safeName
+  };
 }
 
 function computeItemStats_(items, scoreRows) {
@@ -285,25 +328,34 @@ function writeScoreRows_(sh, rows) {
   for (let i=0;i<rows.length;i++) {
     const row = 2+i, first=3, last=2+max, meanCol=3+max, sdCol=4+max, levelCol=5+max;
     const start = col_(first)+row, end=col_(last)+row, meanCell=col_(meanCol)+row;
-    sh.getRange(row, meanCol).setFormula('='+CONFIG.ROUND_MODE+'(AVERAGE('+start+':'+end+'),2)');
-    sh.getRange(row, sdCol).setFormula('='+CONFIG.ROUND_MODE+'(STDEV.S('+start+':'+end+'),2)');
-    sh.getRange(row, levelCol).setFormula('=IF('+meanCell+'>=4.51,"มากที่สุด",IF('+meanCell+'>=3.51,"มาก",IF('+meanCell+'>=2.51,"ปานกลาง",IF('+meanCell+'>=1.51,"น้อย","น้อยที่สุด"))))');
+    // IFERROR กันกรณีผู้ตอบข้อเดียว/แถวว่าง ไม่ให้เกิด #DIV/0! หรือ #VALUE! ที่ QA ห้าม
+    sh.getRange(row, meanCol).setFormula('=IFERROR('+CONFIG.ROUND_MODE+'(AVERAGE('+start+':'+end+'),2),"")');
+    sh.getRange(row, sdCol).setFormula('=IFERROR('+CONFIG.ROUND_MODE+'(STDEV.S('+start+':'+end+'),2),"")');
+    sh.getRange(row, levelCol).setFormula('=IF(NOT(ISNUMBER('+meanCell+')),"",IF('+meanCell+'>=4.51,"มากที่สุด",IF('+meanCell+'>=3.51,"มาก",IF('+meanCell+'>=2.51,"ปานกลาง",IF('+meanCell+'>=1.51,"น้อย","น้อยที่สุด")))))');
   }
 }
 
 function writeQa_(sh,a) {
   sh.clear();
-  sh.getRange(1,1,9,4).setValues([
+  const dupCount = (a.duplicates || []).length;
+  const dupDetail = dupCount ? a.duplicates.map(d => d.key + ' x' + d.count).slice(0, 5).join(', ') : 'ไม่พบ';
+  const yearDetail = (a.years && a.years.length) ? a.years.map(y => 'ปี' + y.year + '=' + y.count).join(', ') : 'ไม่พบข้อมูลชั้นปี';
+  const rows = [
     ['รายการ','ผล','รายละเอียด','วิธีแก้ถ้า REVIEW'],
+    ['โหมดอ่านข้อมูล', a.parseMode === 'wide' ? 'PASS' : 'REVIEW', a.parseMode === 'wide' ? ('matrix จากชีต ' + (a.sheetName || '')) : 'legacy (หัวข้อเป็นแถว)', 'ถ้า legacy ให้ตรวจว่าไฟล์ต้นฉบับมีหัวคอลัมน์ข้อประเมิน'],
     ['จำแนกหมวด',a.confidence>=.55?'PASS':'REVIEW',a.category,'เลือกหมวดเองหรือเพิ่ม regex rule'],
     ['พบข้อคำถาม',a.items.length?'PASS':'REVIEW',a.items.length,'ตรวจรูปแบบข้อ 1.1 / 1.2 ในไฟล์ต้นฉบับ'],
-    ['พบแถวคะแนน',a.scoreRows.length?'PASS':'REVIEW',a.scoreRows.length,'ตรวจว่าแถวคะแนนมีค่าตัวเลข 1-5 อย่างน้อย 3 ช่อง'],
+    ['หัวข้อเป็นข้อความจริง', a.items.length && a.items.every(it => String(it.text || '').trim().length >= 3) ? 'PASS' : 'REVIEW', 'ไม่ใช้ Q1/คอลัมน์_4', 'ตรวจว่าหัวคอลัมน์ในไฟล์ต้นฉบับมีข้อความคำถามครบ'],
+    ['จำนวนผู้ตอบ', (a.respondentCount || a.scoreRows.length) ? 'PASS' : 'REVIEW', (a.respondentCount || a.scoreRows.length), 'ตรวจว่ามีแถวผู้ตอบที่มีคะแนน 1-5'],
+    ['ผู้ตอบซ้ำ', dupCount === 0 ? 'PASS' : 'REVIEW', dupDetail, 'ตรวจรหัส/อีเมล/ชื่อ ที่ซ้ำในไฟล์ต้นฉบับ'],
     ['ช่วงคะแนน 1-5',a.invalidCount===0?'PASS':'REVIEW',a.invalidCount,'แก้คะแนนผิดช่วงในไฟล์ต้นฉบับ'],
+    ['สรุปชั้นปี', 'INFO', yearDetail, 'ใช้สำหรับแยกรายงานรายชั้นปีใน Phase 3'],
     ['สูตร X/SD','PASS',CONFIG.ROUND_MODE+'(...,2) + STDEV.S','ตรวจสูตรใน ScoreRows'],
     ['ฟอนต์','PASS',CONFIG.REPORT_FONT,'ถ้าเครื่องไม่มีฟอนต์ให้ใช้ TH Sarabun New'],
     ['PDF Print Safe','PASS','Export เฉพาะ Print_Report A4 landscape fit width','เปิด PDF ตรวจว่าตารางไม่ขาดก่อนพิมพ์'],
     ['คำเตือนราชการ','PASS','ต้องตรวจ QA_Log ก่อนใช้จริง','แนบ QA_Log เป็นหลักฐานตรวจสอบ']
-  ]);
+  ];
+  sh.getRange(1,1,rows.length,4).setValues(rows);
 }
 
 function writePrint_(sh,a) {
