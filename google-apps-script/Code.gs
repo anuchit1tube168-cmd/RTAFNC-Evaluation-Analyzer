@@ -443,12 +443,12 @@ function writeIndividualAllItems_(sh, a) {
   sh.clear();
   const items = a.items || [];
   const respondents = a.respondents || [];
-  const headers = ['ลำดับ','รหัส/ทะเบียน','ชื่อ-สกุล','ชั้นปี']
+  const nItems = items.length;
+  const headers = ['ลำดับ','รหัส/เลขที่','ชื่อ-สกุล','ชั้นปี','ตอบ/ทั้งหมด']
     .concat(items.map(it => pShortText_(it.code, it.text, 22)))
-    .concat(['X','SD','ระดับ','ข้อคิดเห็น']);
+    .concat(['X','SD','ระดับ','ทะเบียน','ข้อคิดเห็น']);
   sh.getRange(1,1,1,headers.length).setValues([headers]);
   if (!respondents.length) { sh.getRange(2,1).setValue('ไม่พบข้อมูลรายบุคคล'); return; }
-  const nItems = items.length;
   const data = respondents.map((p, i) => {
     const scores = [];
     for (let k = 0; k < nItems; k++) {
@@ -456,9 +456,9 @@ function writeIndividualAllItems_(sh, a) {
       scores.push(pIsValidScore_(v) ? v : '');
     }
     const st = pPersonStats_(p.scores || []);
-    return [i + 1, p.id || p.seq || '', p.name || '', p.year || '']
+    return [i + 1, p.id || p.seq || '', p.name || '', p.year || '', st.n + '/' + nItems]
       .concat(scores)
-      .concat([st.n ? st.mean : '', st.n ? st.sd : '', st.level, p.comment || '']);
+      .concat([st.n ? st.mean : '', st.n ? st.sd : '', st.level, (p.rowIndex ? 'row' + p.rowIndex : ''), p.comment || '']);
   });
   sh.getRange(2,1,data.length,headers.length).setValues(data);
   sh.setFrozenColumns(3);
@@ -582,6 +582,29 @@ function writePrintGroup_(sh, a, gr, commentAnalysis) {
     sh.getRange(nextRow, 1, 1, 8).merge().setValue(t);
     nextRow++;
   });
+
+  // ภาคผนวก: สรุปรายบุคคล (SKILL §8.2/§10) — PDF ไม่แสดงคะแนนรายข้อ (กว้างเกิน) เก็บครบใน Excel
+  if (gr.hasData && gr.subset.length) {
+    nextRow++;
+    sh.getRange(nextRow, 1, 1, 8).merge().setValue('ภาคผนวก: สรุปรายบุคคล').setFontWeight('bold');
+    const apxHeader = nextRow + 1;
+    sh.getRange(apxHeader, 1, 1, 8).setValues([['ลำดับ', 'รหัส/เลขที่', 'ชื่อ-สกุล', 'ชั้นปี', 'ตอบ/ทั้งหมด', 'X', 'ระดับ', 'ข้อคิดเห็น']]);
+    sh.getRange(apxHeader, 1, 1, 8).setFontWeight('bold').setBackground('#EAF3FF').setHorizontalAlignment('center');
+    const nItems = (a.items || []).length;
+    const CAP = 200;
+    const list = gr.subset.slice(0, CAP);
+    const apxRows = list.map(function (pp, i) {
+      const st = pPersonStats_(pp.scores || []);
+      return [i + 1, pp.id || pp.seq || '', pp.name || '', pp.year || '', st.n + '/' + nItems, st.n ? st.mean : '', st.level, pp.comment || ''];
+    });
+    sh.getRange(apxHeader + 1, 1, apxRows.length, 8).setValues(apxRows);
+    nextRow = apxHeader + 1 + apxRows.length;
+    if (gr.subset.length > CAP) {
+      sh.getRange(nextRow, 1, 1, 8).merge().setValue('หมายเหตุ: แสดง ' + CAP + ' รายแรกจาก ' + gr.subset.length + ' ราย — ดูรายบุคคลครบใน Excel (Individual_All_Items)');
+      nextRow++;
+    }
+    nextRow++;
+  }
 
   nextRow++;
   sh.getRange(nextRow, 1, 1, 8).merge().setValue('หมายเหตุ: รายงานสร้างจากระบบอัตโนมัติ ควรตรวจ QA_Log และไฟล์ต้นฉบับก่อนนำไปใช้ทางราชการ');
