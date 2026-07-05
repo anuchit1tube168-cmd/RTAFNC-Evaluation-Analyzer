@@ -1,0 +1,2 @@
+trigger deploy for v6 named functions
+commit: 0a8a95c3e1470b763db32caebfa4be7e0db8c563
