@@ -34,9 +34,16 @@ jobs:
           cd gas-dist
           echo '${{ secrets.CLASP_JSON }}' > .clasp.json
           echo '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
+          # secret CLASP_JSON อาจตั้ง rootDir=google-apps-script (สำหรับใช้ที่ repo root)
+          # แต่ที่นี่ clasp รันใน gas-dist จึงต้องบังคับ rootDir="." ไม่งั้น clasp หาไฟล์ไม่เจอ
+          # แล้วขึ้น "Script is already up to date" โดยไม่ push อะไรเลย
+          node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('.clasp.json','utf8'));j.rootDir='.';fs.writeFileSync('.clasp.json',JSON.stringify(j));"
+          echo "clasp rootDir set to: $(node -e "console.log(require('./.clasp.json').rootDir)")"
 
       - name: Install clasp
-        run: npm install -g @google/clasp
+        # pin v2: workflow ใช้ syntax แบบ positional (clasp version / clasp redeploy <id> <ver> <desc>)
+        # clasp v3 เปลี่ยนเป็น flag ทำให้ redeploy ล้มเหลว "too many arguments for update-deployment"
+        run: npm install -g @google/clasp@2.4.2
 
       - name: Push Apps Script code
         working-directory: gas-dist
@@ -54,4 +61,7 @@ jobs:
           fi
           DEPLOYMENT_ID="${APPS_SCRIPT_DEPLOYMENT_ID:-$DEFAULT_DEPLOYMENT_ID}"
           echo "Redeploying Apps Script deployment: $DEPLOYMENT_ID with version: $VERSION_NUMBER"
-          clasp redeploy "$DEPLOYMENT_ID" "$VERSION_NUMBER" "GitHub redeploy ${{ github.sha }}"
+          REDEPLOY_OUT=$(clasp redeploy "$DEPLOYMENT_ID" "$VERSION_NUMBER" "GitHub redeploy ${{ github.sha }}" 2>&1); echo "$REDEPLOY_OUT"
+          # clasp บางเวอร์ชัน print error แต่ exit 0 -> ตรวจข้อความ error เองแล้ว fail
+          echo "$REDEPLOY_OUT" | grep -qi "error" && { echo "redeploy ล้มเหลว"; exit 1; }
+          echo "$REDEPLOY_OUT" | grep -qi "Deployed" || echo "หมายเหตุ: ไม่พบคำว่า Deployed ในผลลัพธ์ โปรดตรวจ deployment"
