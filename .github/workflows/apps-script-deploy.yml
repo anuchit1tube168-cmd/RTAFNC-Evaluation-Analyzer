@@ -25,8 +25,12 @@ jobs:
       - name: Prepare Apps Script project files
         run: |
           mkdir -p gas-dist
-          cp google-apps-script/Code.gs gas-dist/Code.gs
+          # คัดลอกไฟล์ .gs ทุกไฟล์ (Code.gs + Parser_v5.gs + Code_v5.gs) ไม่ใช่แค่ Code.gs
+          # มิฉะนั้น Code.gs จะเรียกฟังก์ชันใน Parser_v5.gs ที่ยังไม่ถูก push -> ReferenceError
+          cp google-apps-script/*.gs gas-dist/
           cp google-apps-script/appsscript.json gas-dist/appsscript.json
+          echo "Files staged for clasp push:"
+          ls -1 gas-dist
           cd gas-dist
           echo '${{ secrets.CLASP_JSON }}' > .clasp.json
           echo '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
