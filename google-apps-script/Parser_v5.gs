@@ -79,6 +79,28 @@ function pNormalizeYear_(v) {
 
 function pIsEmail_(v) { return /@/.test(pTrim_(v)) && /\.[a-z]{2,}/i.test(pTrim_(v)); }
 
+/**
+ * สร้างข้อความย่อสำหรับหัวตารางรายคน: รหัสข้อ + ข้อความสั้น (ตัดด้วย …)
+ * ตัดรหัสที่ซ้ำหน้าข้อความออกก่อน เพื่อไม่ให้ได้ "1.1 1.1 ..."
+ */
+function pShortText_(code, text, maxLen) {
+  maxLen = maxLen || 28;
+  let t = pTrim_(text);
+  if (code) {
+    const re = new RegExp('^' + code.split('.').join('\\.') + '[\\s\\.\\)]*');
+    t = t.replace(re, '').trim();
+  }
+  if (t.length > maxLen) t = t.slice(0, maxLen).trim() + '…';
+  return code ? (code + ' ' + t).trim() : t;
+}
+
+/** สถิติรายบุคคลจากอาร์เรย์คะแนน (นับเฉพาะค่า 1–5) — ใช้ค่าคำนวณจริง ไม่ใช้สูตร */
+function pPersonStats_(scores) {
+  const v = (scores || []).filter(pIsValidScore_);
+  const m = pMean_(v);
+  return { n: v.length, mean: pRound2_(m), sd: pRound2_(pSdSample_(v)), level: v.length ? pLevel_(m) : '' };
+}
+
 /** ดึงรหัสข้อ เช่น "1.1", "12" จากต้นข้อความหัวข้อ (ถ้ามี) */
 function pItemCode_(header) {
   const m = pTrim_(header).match(/^(\d+(?:\.\d+)?)/);
@@ -296,6 +318,8 @@ if (typeof module !== 'undefined' && module.exports) {
     pCleanThaiName_: pCleanThaiName_,
     pNormalizeYear_: pNormalizeYear_,
     pIsValidScore_: pIsValidScore_,
-    pToNum_: pToNum_
+    pToNum_: pToNum_,
+    pShortText_: pShortText_,
+    pPersonStats_: pPersonStats_
   };
 }

@@ -212,12 +212,12 @@ function analyzeSheet_(spreadsheetId, rawName, categoryOverride) {
 
   if (best) {
     const p = best.parsed;
-    const items = p.items.map(it => ({ no: it.no, text: it.text, row: it.col + 1 }));
-    const itemStats = p.itemStats.map(x => ({ no: x.no, text: x.text, row: x.col + 1, n: x.n, mean: x.mean, sd: x.sd, level: x.level }));
+    const items = p.items.map(it => ({ no: it.no, code: it.code, text: it.text, col: it.col, row: it.col + 1 }));
+    const itemStats = p.itemStats.map(x => ({ no: x.no, code: x.code, text: x.text, col: x.col, row: x.col + 1, n: x.n, mean: x.mean, sd: x.sd, level: x.level }));
     return {
       rawName: rawName, category: cat.category, confidence: cat.confidence,
       title: detectTitle_(best.display) || detectTitle_(firstDisplay) || rawName,
-      items: items, itemStats: itemStats, scoreRows: p.scoreRows,
+      items: items, itemStats: itemStats, scoreRows: p.scoreRows, respondents: p.respondents,
       overallMean: p.overallMean, overallSd: p.overallSd, invalidCount: p.invalidCount,
       parseMode: 'wide', sheetName: best.sheet.getName(),
       respondentCount: p.respondentCount, duplicates: p.duplicates, years: p.years,
@@ -228,17 +228,20 @@ function analyzeSheet_(spreadsheetId, rawName, categoryOverride) {
   // Fallback: รูปแบบเดิม (หัวข้อเป็นแถว) เมื่อไม่พบตาราง matrix
   const display = firstDisplay || [];
   const values = sheets.length ? sheets[0].getDataRange().getValues() : [];
-  const items = detectItems_(display);
+  const rawItems = detectItems_(display);
+  const items = rawItems.map(it => ({ no: it.no, code: pItemCode_(it.no) || pItemCode_(it.text), text: it.text, col: null, row: it.row }));
   const scoreRows = detectScoreRows_(values);
-  const itemStats = computeItemStats_(items, scoreRows);
+  const itemStats = computeItemStats_(rawItems, scoreRows).map(x => ({ no: x.no, code: pItemCode_(x.no) || pItemCode_(x.text), text: x.text, col: null, row: x.row, n: x.n, mean: x.mean, sd: x.sd, level: x.level }));
   const all = [];
   scoreRows.forEach(r => r.scores.forEach(v => all.push(v)));
   const overallMean = all.length ? mean_(all) : 0;
   const overallSd = all.length > 1 ? sdSample_(all) : 0;
+  // สร้าง respondents แบบเรียบง่ายจาก scoreRows เพื่อให้ Individual_All_Items ทำงานได้
+  const respondents = scoreRows.map(r => ({ rowIndex: r.row, seq: '', id: '', name: r.label, email: '', year: '', rank: '', comment: '', scores: r.scores, validCount: r.scores.filter(v => typeof v === 'number').length }));
   return {
     rawName: rawName, category: cat.category, confidence: cat.confidence,
     title: detectTitle_(display) || rawName,
-    items: items, itemStats: itemStats, scoreRows: scoreRows,
+    items: items, itemStats: itemStats, scoreRows: scoreRows, respondents: respondents,
     overallMean: overallMean, overallSd: overallSd, invalidCount: detectInvalidScores_(values),
     parseMode: 'legacy', sheetName: sheets.length ? sheets[0].getName() : '',
     respondentCount: scoreRows.length, duplicates: [], years: [],
@@ -264,14 +267,18 @@ function createOutputWorkbook_(a) {
   const cover = ss.getSheets()[0].setName('Cover');
   const executive = ss.insertSheet('Executive_Summary');
   const dash = ss.insertSheet('Dashboard');
-  const items = ss.insertSheet('Items');
+  const dict = ss.insertSheet('Item_Dictionary');
+  const items = ss.insertSheet('Items_X_SD');
+  const indiv = ss.insertSheet('Individual_All_Items');
   const rows = ss.insertSheet('ScoreRows');
   const qa = ss.insertSheet('QA_Log');
   const print = ss.insertSheet('Print_Report');
   writeCover_(cover, a);
   writeExecutive_(executive, a);
   writeDashboard_(dash, a);
+  writeItemDictionary_(dict, a);
   writeItems_(items, a.itemStats);
+  writeIndividualAllItems_(indiv, a);
   writeScoreRows_(rows, a.scoreRows);
   writeQa_(qa, a);
   writePrint_(print, a);
@@ -314,6 +321,54 @@ function writeItems_(sh, itemStats) {
   if (itemStats.length) {
     sh.getRange(2,1,itemStats.length,8).setValues(itemStats.map((x,i)=>[i+1,x.no,x.text,x.n,x.mean,x.sd,x.level,x.row]));
   }
+  sh.getRange('C:C').setWrap(true); // ข้อความคำถามยาว ต้อง wrap ไม่ตัดทิ้ง
+}
+
+/** Item_Dictionary: รหัสข้อ + ข้อความเต็ม + ข้อความย่อ + sourceColumn + N (จำนวนต้องตรงกับคะแนนรายข้อ) */
+function writeItemDictionary_(sh, a) {
+  sh.clear();
+  sh.getRange(1,1,1,5).setValues([['รหัสข้อ','ข้อความคำถามเต็ม','ข้อความย่อ (ใช้ในหัวตารางรายคน)','sourceColumn','N']]);
+  const stats = a.itemStats || [];
+  if (stats.length) {
+    const rows = stats.map(x => [
+      x.no,
+      x.text,
+      pShortText_(x.code, x.text, 28),
+      (x.col != null ? col_(x.col + 1) : (x.row || '')),
+      x.n
+    ]);
+    sh.getRange(2,1,rows.length,5).setValues(rows);
+  }
+  sh.getRange('B:C').setWrap(true);
+}
+
+/**
+ * Individual_All_Items: รายบุคคล 1 แถว พร้อมคะแนนรายข้อครบทุกข้อ
+ * หัวคะแนนรายข้อ = รหัสข้อ + ข้อความคำถามย่อ, มี X/SD/ระดับรายบุคคล (ค่าคำนวณจริง)
+ */
+function writeIndividualAllItems_(sh, a) {
+  sh.clear();
+  const items = a.items || [];
+  const respondents = a.respondents || [];
+  const headers = ['ลำดับ','รหัส/ทะเบียน','ชื่อ-สกุล','ชั้นปี']
+    .concat(items.map(it => pShortText_(it.code, it.text, 22)))
+    .concat(['X','SD','ระดับ','ข้อคิดเห็น']);
+  sh.getRange(1,1,1,headers.length).setValues([headers]);
+  if (!respondents.length) { sh.getRange(2,1).setValue('ไม่พบข้อมูลรายบุคคล'); return; }
+  const nItems = items.length;
+  const data = respondents.map((p, i) => {
+    const scores = [];
+    for (let k = 0; k < nItems; k++) {
+      const v = p.scores ? p.scores[k] : '';
+      scores.push(pIsValidScore_(v) ? v : '');
+    }
+    const st = pPersonStats_(p.scores || []);
+    return [i + 1, p.id || p.seq || '', p.name || '', p.year || '']
+      .concat(scores)
+      .concat([st.n ? st.mean : '', st.n ? st.sd : '', st.level, p.comment || '']);
+  });
+  sh.getRange(2,1,data.length,headers.length).setValues(data);
+  sh.setFrozenColumns(3);
 }
 
 function writeScoreRows_(sh, rows) {
@@ -347,6 +402,8 @@ function writeQa_(sh,a) {
     ['พบข้อคำถาม',a.items.length?'PASS':'REVIEW',a.items.length,'ตรวจรูปแบบข้อ 1.1 / 1.2 ในไฟล์ต้นฉบับ'],
     ['หัวข้อเป็นข้อความจริง', a.items.length && a.items.every(it => String(it.text || '').trim().length >= 3) ? 'PASS' : 'REVIEW', 'ไม่ใช้ Q1/คอลัมน์_4', 'ตรวจว่าหัวคอลัมน์ในไฟล์ต้นฉบับมีข้อความคำถามครบ'],
     ['จำนวนผู้ตอบ', (a.respondentCount || a.scoreRows.length) ? 'PASS' : 'REVIEW', (a.respondentCount || a.scoreRows.length), 'ตรวจว่ามีแถวผู้ตอบที่มีคะแนน 1-5'],
+    ['Item_Dictionary', (a.itemStats || []).length ? 'PASS' : 'REVIEW', 'จำนวนข้อ ' + (a.itemStats || []).length + ' (ต้องตรงกับคะแนนรายข้อ)', 'ตรวจว่าหัวคอลัมน์ข้อประเมินครบในไฟล์ต้นฉบับ'],
+    ['Individual_All_Items', (a.respondents || []).length ? 'PASS' : 'REVIEW', 'รายคน ' + (a.respondents || []).length + ' คน พร้อมข้อความคำถามกำกับคะแนน', 'ถ้าไม่มีรายคน ตรวจว่ามีคอลัมน์คะแนนในไฟล์ต้นฉบับ'],
     ['ผู้ตอบซ้ำ', dupCount === 0 ? 'PASS' : 'REVIEW', dupDetail, 'ตรวจรหัส/อีเมล/ชื่อ ที่ซ้ำในไฟล์ต้นฉบับ'],
     ['ช่วงคะแนน 1-5',a.invalidCount===0?'PASS':'REVIEW',a.invalidCount,'แก้คะแนนผิดช่วงในไฟล์ต้นฉบับ'],
     ['สรุปชั้นปี', 'INFO', yearDetail, 'ใช้สำหรับแยกรายงานรายชั้นปีใน Phase 3'],

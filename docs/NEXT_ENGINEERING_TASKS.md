@@ -19,12 +19,16 @@
 
 ## Phase 2 — Items and Score Calculations
 
+สถานะ: ทำแล้วใน `createOutputWorkbook_` (Code.gs) — sheet `Item_Dictionary`, `Items_X_SD`,
+`Individual_All_Items` สร้างจาก respondents ของ Parser v5 (Node test: `scratchpad/test_phase2.js`)
+
 ```text
-[ ] ดึงหัวข้อประเมินรายข้อครบ
-[ ] สร้าง Items_X_SD
-[ ] คำนวณ N, X, SD, ระดับ รายข้อ
-[ ] สร้าง Individual_All_Items พร้อมคะแนนรายข้อ
-[ ] ใช้ค่าคำนวณจริง ไม่สร้างสูตรที่เสี่ยง #NAME?
+[x] ดึงหัวข้อประเมินรายข้อครบ (ข้อความคำถามจริงจากหัวคอลัมน์)
+[x] สร้าง Items_X_SD (เปลี่ยนชื่อจาก Items เดิม + wrap คอลัมน์คำถาม)
+[x] เพิ่ม Item_Dictionary: รหัสข้อ + ข้อความเต็ม + ข้อความย่อ + sourceColumn + N
+[x] คำนวณ N, X, SD, ระดับ รายข้อ
+[x] สร้าง Individual_All_Items พร้อมคะแนนรายข้อ (หัวคะแนน = รหัสข้อ + ข้อความย่อ, มี X/SD/ระดับรายคน)
+[x] ใช้ค่าคำนวณจริง ไม่สร้างสูตรที่เสี่ยง #NAME? (Individual ใช้ค่าคำนวณ, ScoreRows หุ้ม IFERROR)
 ```
 
 ## Phase 3 — Per-class Exports
