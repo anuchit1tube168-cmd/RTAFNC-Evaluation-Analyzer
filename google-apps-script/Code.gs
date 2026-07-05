@@ -59,6 +59,7 @@ function apiGet_(p) {
     if (action === 'list') result = { ok: true, files: listPendingFiles() };
     else if (action === 'process') result = processPendingRawFiles();
     else if (action === 'test') result = processOneFile_(DriveApp.getFileById(p.fileId), p.category || '');
+    else if (action === 'selftest') result = selfTest_();
     else result = getHealth_();
   } catch (err) {
     result = { ok: false, error: String(err && err.stack ? err.stack : err) };
@@ -83,6 +84,46 @@ function jsonp_(obj, callback) {
   const json = JSON.stringify(obj);
   if (callback) return ContentService.createTextOutput(callback + '(' + json + ');').setMimeType(ContentService.MimeType.JAVASCRIPT);
   return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Self-test: ตรวจว่า Parser v5 + QA Gate ทำงานบน deployment จริงได้
+ * โดยใช้ข้อมูลจำลอง (ไม่แตะ Drive) เรียกผ่าน ?action=selftest
+ */
+function selfTest_() {
+  const checks = [];
+  function check(name, cond, detail) { checks.push({ name: name, pass: !!cond, detail: detail || '' }); }
+  try {
+    const header = ['เลขที่', 'รหัสนักศึกษา', 'ชื่อ', 'สกุล', 'ชั้นปี', '1.1 ตั้งใจเรียน', '1.2 ส่งงาน', 'ข้อเสนอแนะ'];
+    const data = [
+      [1, '6301', 'กชกร', 'ใจดี', 'ชั้นปีที่ 1', 5, 4, 'อาจารย์สอนดีมาก'],
+      [2, '6302', 'สมชาย', 'ดี', 'ปี 2', 4, 3, 'เวลาน้อยไป'],
+      [3, '6301', 'กชกร', 'ใจดี', 'ชั้นปีที่ 1', 5, 5, 'ไม่มี']
+    ];
+    const values = [header].concat(data);
+    const display = values.map(function (r) { return r.map(function (c) { return String(c); }); });
+    const p = parseEvaluationMatrix_(values, display);
+    check('parser โหลดและพบตาราง matrix', p.found === true);
+    check('คอลัมน์คะแนน = 2 (metadata ไม่ถูกนับ)', p.items.length === 2, 'items=' + p.items.length);
+    check('ใช้ข้อความคำถามจริง ไม่ใช่ Q1', p.items[0].text === '1.1 ตั้งใจเรียน', p.items[0].text);
+    check('ผู้ตอบ = 3', p.respondentCount === 3, 'n=' + p.respondentCount);
+    check('จับผู้ตอบซ้ำ (6301)', (p.duplicates || []).length === 1);
+    check('clean ชื่อไทย (รวมชื่อ+สกุล)', p.respondents[0].name === 'กชกร ใจดี', p.respondents[0].name);
+    check('จับชั้นปีได้', p.years.length >= 2, JSON.stringify(p.years));
+    const ca = pAnalyzeComments_(p.respondents);
+    check('ข้อคิดเห็นมีสาระ = 2 (ตัด "ไม่มี")', ca.total === 2, 'total=' + ca.total);
+    const items = p.items.map(function (it) { return { no: it.no, code: it.code, text: it.text, col: it.col }; });
+    const groups = REPORT_GROUPS.map(function (g) {
+      const subset = g.year ? p.respondents.filter(function (r) { return r.year === g.year; }) : p.respondents;
+      return { def: g, hasData: subset.length > 0 };
+    });
+    const gate = pRunQaGate_({ items: items, respondents: p.respondents, invalidCount: p.invalidCount, duplicates: p.duplicates, parseMode: 'wide' }, groups);
+    check('QA Gate ทำงาน', gate.status === 'PASS' || gate.status === 'REVIEW', gate.status);
+  } catch (err) {
+    check('เกิดข้อผิดพลาด', false, String(err && err.stack ? err.stack : err));
+  }
+  const passed = checks.filter(function (c) { return c.pass; }).length;
+  return { ok: true, action: 'selftest', version: 'v5-per-class-reports', passed: passed, total: checks.length, allPass: passed === checks.length, checks: checks };
 }
 
 function getSystemStatus() {
