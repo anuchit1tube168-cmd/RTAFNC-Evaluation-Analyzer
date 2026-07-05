@@ -67,7 +67,7 @@ ok('all 4 year rows', yearRows.length === 4);
 
 console.log('\nComments analysis');
 eq('meaningful comments = 2 (ไม่มี excluded)', ca.total, 2);
-ok('has time theme', ca.themes.some(t => t.theme === 'เวลา/ตารางเวลา'));
+ok('has communication theme', ca.themes.some(t => t.theme === 'การสื่อสาร/การรับฟัง'));
 
 console.log('\nPDF count');
 ok('exactly 5 PDFs would export', groups.length === 5);
