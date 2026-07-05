@@ -1,7 +1,8 @@
 /**
- * RTAFNC Evaluation Analyzer Backend v4 — Print-safe Production
+ * RTAFNC Evaluation Analyzer Backend v5 — Per-class reports (print-safe)
  * Frontend Portal: GitHub Pages
  * Backend: Apps Script Web App + Google Drive + Google Sheets
+ * Parser: Parser_v5.gs (wide-matrix) with legacy fallback
  */
 
 const CONFIG = {
@@ -69,7 +70,7 @@ function getHealth_() {
   const driveAdvancedAvailable = (typeof Drive !== 'undefined' && Drive.Files);
   return {
     ok: true,
-    version: 'v4-print-safe-production',
+    version: 'v5-per-class-reports',
     parser: 'wide-matrix-v1',
     uploadUi: ScriptApp.getService().getUrl(),
     driveAdvancedAvailable: !!driveAdvancedAvailable,
@@ -87,7 +88,7 @@ function jsonp_(obj, callback) {
 function getSystemStatus() {
   return {
     ok: true,
-    version: 'v4-print-safe-production',
+    version: 'v5-per-class-reports',
     pendingFiles: listPendingFiles(),
     health: getHealth_(),
     folders: {
@@ -162,10 +163,11 @@ function processOneFile_(file, categoryOverride) {
     return { key: g.key, label: g.label, name: g.pdfName, hasData: g.hasData, url: p.url, id: p.id };
   });
   const missingYears = output.groups.filter(g => g.year !== null && !g.hasData).map(g => g.label);
+  const gate = pRunQaGate_(analysis, output.groups || []);
   moveFile_(file, CONFIG.PENDING_FOLDER_ID, CONFIG.PROCESSED_FOLDER_ID);
   if (!CONFIG.KEEP_TEMP_SHEETS) DriveApp.getFileById(tempId).setTrashed(true);
-  appendLog_(file.getName(), 'SUCCESS', analysis.category, 'processed (' + pdfs.length + ' PDFs' + (missingYears.length ? ', ไม่มีข้อมูล: ' + missingYears.join(', ') : '') + ')', output.url, pdfs.length ? pdfs[0].url : '');
-  return { ok: true, file: file.getName(), status: 'SUCCESS', category: analysis.category, confidence: analysis.confidence, parseMode: analysis.parseMode, respondentCount: analysis.respondentCount, duplicateCount: (analysis.duplicates || []).length, itemCount: analysis.items.length, scoreRows: analysis.scoreRows.length, mean: round2_(analysis.overallMean), sd: round2_(analysis.overallSd), outputSpreadsheetUrl: output.url, pdfUrl: pdfs.length ? pdfs[0].url : '', pdfUrls: pdfs.map(p => ({ name: p.name, hasData: p.hasData, url: p.url })), missingYears: missingYears };
+  appendLog_(file.getName(), 'SUCCESS', analysis.category, 'processed (' + pdfs.length + ' PDFs, QA=' + gate.status + (gate.failures.length ? ': ' + gate.failures.join(', ') : '') + ')', output.url, pdfs.length ? pdfs[0].url : '');
+  return { ok: true, file: file.getName(), status: 'SUCCESS', qaStatus: gate.status, qaFailures: gate.failures, qaWarnings: gate.warnings, category: analysis.category, confidence: analysis.confidence, parseMode: analysis.parseMode, respondentCount: analysis.respondentCount, duplicateCount: (analysis.duplicates || []).length, itemCount: analysis.items.length, scoreRows: analysis.scoreRows.length, mean: round2_(analysis.overallMean), sd: round2_(analysis.overallSd), outputSpreadsheetUrl: output.url, pdfUrl: pdfs.length ? pdfs[0].url : '', pdfUrls: pdfs.map(p => ({ name: p.name, hasData: p.hasData, url: p.url })), missingYears: missingYears };
 }
 
 function convertToGoogleSheet_(file) {
@@ -452,8 +454,13 @@ function writeQa_(sh, a, groups, commentAnalysis) {
     g.hasData ? (g.subset.length + ' คน') : 'ไม่มีข้อมูล (สร้างรายงานเปล่าพร้อมหมายเหตุ)',
     g.hasData ? 'ตรวจ Print_Report_ปี' + g.def.key : 'ตรวจไฟล์ต้นฉบับว่ามีผู้ตอบชั้นปีนี้หรือไม่'
   ]);
+  const gate = pRunQaGate_(a, groups);
+  const gateDetail = gate.status === 'PASS'
+    ? (gate.warnings.length ? ('ผ่าน (มีข้อควรตรวจ: ' + gate.warnings.join('; ') + ')') : 'ผ่านทุกเกณฑ์หลัก')
+    : gate.failures.join('; ');
   const rows = [
     ['รายการ','ผล','รายละเอียด','วิธีแก้ถ้า REVIEW'],
+    ['** สรุปผล QA Gate **', gate.status, gateDetail, 'แก้ทุก failures ให้หมดก่อนส่งราชการ'],
     ['โหมดอ่านข้อมูล', a.parseMode === 'wide' ? 'PASS' : 'REVIEW', a.parseMode === 'wide' ? ('matrix จากชีต ' + (a.sheetName || '')) : 'legacy (หัวข้อเป็นแถว)', 'ถ้า legacy ให้ตรวจว่าไฟล์ต้นฉบับมีหัวคอลัมน์ข้อประเมิน'],
     ['จำแนกหมวด',a.confidence>=.55?'PASS':'REVIEW',a.category,'เลือกหมวดเองหรือเพิ่ม regex rule'],
     ['พบข้อคำถาม',a.items.length?'PASS':'REVIEW',a.items.length,'ตรวจรูปแบบข้อ 1.1 / 1.2 ในไฟล์ต้นฉบับ'],

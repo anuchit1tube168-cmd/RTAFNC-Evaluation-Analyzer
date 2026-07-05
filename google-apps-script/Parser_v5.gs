@@ -374,6 +374,36 @@ function parseEvaluationMatrix_(values, display) {
   };
 }
 
+/**
+ * QA Gate รวม (Phase 6): ตัดสิน PASS/REVIEW จากผลวิเคราะห์ + กลุ่มรายงาน
+ * failures = ปัญหาที่ต้องแก้ก่อนใช้จริง (บังคับ REVIEW)
+ * warnings = ข้อควรตรวจ แต่ไม่บล็อก (เช่น บางชั้นปีไม่มีข้อมูล, ผู้ตอบซ้ำ)
+ */
+function pRunQaGate_(a, groups) {
+  a = a || {};
+  groups = groups || [];
+  const items = a.items || [];
+  const respondents = a.respondents || [];
+  const failures = [];
+  const warnings = [];
+
+  if (!items.length) failures.push('ไม่พบข้อประเมิน');
+  if (items.length && !items.every(it => pTrim_(it.text).length >= 3)) failures.push('มีหัวข้อประเมินที่ไม่ใช่ข้อความคำถามจริง (เช่น Q1/คอลัมน์_4)');
+  if (!respondents.length) failures.push('ไม่พบผู้ตอบรายบุคคล');
+  if ((a.invalidCount || 0) > 0) failures.push('มีคะแนนนอกช่วง 1–5 จำนวน ' + a.invalidCount + ' ค่า');
+  if (groups.length && groups.length !== 5) failures.push('กลุ่มรายงานไม่ครบ 5 กลุ่ม');
+
+  if (a.parseMode && a.parseMode !== 'wide') warnings.push('อ่านข้อมูลด้วยโหมด legacy — ควรตรวจไฟล์ต้นฉบับว่าหัวคอลัมน์ข้อประเมินครบ');
+  if ((a.duplicates || []).length > 0) warnings.push('พบผู้ตอบซ้ำ ' + a.duplicates.length + ' คีย์');
+  // รองรับทั้ง group ภายใน (g.def.year) และ groupsMeta ที่ส่งจาก processOneFile_ (g.year)
+  const groupYear = g => (g.def ? g.def.year : g.year);
+  const groupLabel = g => (g.def ? g.def.label : g.label);
+  const emptyYears = groups.filter(g => groupYear(g) !== null && groupYear(g) !== undefined && !g.hasData).map(groupLabel);
+  if (emptyYears.length) warnings.push('ชั้นปีไม่มีข้อมูล: ' + emptyYears.join(', ') + ' (สร้างรายงานเปล่าไว้แล้ว)');
+
+  return { status: failures.length ? 'REVIEW' : 'PASS', failures: failures, warnings: warnings };
+}
+
 // รองรับการ import ใน Node เพื่อทดสอบ (Apps Script ไม่มี module จึงข้ามบรรทัดนี้)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -390,6 +420,7 @@ if (typeof module !== 'undefined' && module.exports) {
     pOverallStats_: pOverallStats_,
     pLowestItems_: pLowestItems_,
     pAnalyzeComments_: pAnalyzeComments_,
-    pIsMeaningfulComment_: pIsMeaningfulComment_
+    pIsMeaningfulComment_: pIsMeaningfulComment_,
+    pRunQaGate_: pRunQaGate_
   };
 }

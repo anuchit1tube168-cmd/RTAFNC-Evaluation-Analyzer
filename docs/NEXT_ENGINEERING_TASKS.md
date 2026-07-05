@@ -73,8 +73,9 @@
 
 ## Phase 6 — QA Gate
 
-สถานะ: QA_Log ตรวจอัตโนมัติหลายรายการแล้ว (parseMode, หัวข้อจริง, ผู้ตอบซ้ำ, รายชั้นปี,
-PDF ครบ 5, ข้อเสนอแนะ, ลายเซ็น, Comments) — ยังต้องรันจริงเทียบ Golden Examples
+สถานะ: มี QA Gate รวม `pRunQaGate_` ตัดสิน PASS/REVIEW และสรุปบนสุดของ QA_Log +
+ส่ง `qaStatus`/`qaFailures`/`qaWarnings` กลับใน API และบันทึกใน Process Log
+(version bump เป็น `v5-per-class-reports`) — ยังต้องรันจริงเทียบ Golden Examples
 
 ```text
 [x] ตรวจ sheet ครบ (Item_Dictionary/Items_X_SD/Individual_All_Items/Comments_Themes/Print_Report_*)
@@ -83,6 +84,7 @@ PDF ครบ 5, ข้อเสนอแนะ, ลายเซ็น, Comments
 [~] ตรวจหัวข้อ Excel/PDF ตรงกัน (หัวรายงานใช้ a.title ร่วมกัน — ควรตรวจตอนรันจริง)
 [x] ตรวจไม่มีสรุปตามชั้นปีใน PDF
 [x] ตรวจมีข้อเสนอแนะและลายเซ็น
+[x] QA Gate รวม: บังคับ REVIEW เมื่อไม่มีข้อ/หัวข้อไม่จริง/ไม่มีผู้ตอบ/คะแนนนอกช่วง/กลุ่มไม่ครบ
 [ ] ตรวจเทียบ Golden Examples (ต้องรันกับไฟล์จริงบน Apps Script)
 ```
 
