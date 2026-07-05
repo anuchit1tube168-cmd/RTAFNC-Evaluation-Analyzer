@@ -61,6 +61,7 @@ function apiGet_(p) {
     else if (action === 'test') result = processOneFile_(DriveApp.getFileById(p.fileId), p.category || '');
     else if (action === 'selftest') result = selfTest_();
     else if (action === 'selfexport') result = selfExport_();
+    else if (action === 'peek') result = peekFile_(p.fileId);
     else result = getHealth_();
   } catch (err) {
     result = { ok: false, error: String(err && err.stack ? err.stack : err) };
@@ -616,6 +617,53 @@ function writeCommentsThemes_(sh, ca) {
  * สร้าง Google Sheet ครบทุก tab, export เป็น xlsx + PDF (รายงานรวม), แล้วลบ Sheet ทิ้ง
  * เพื่อไม่ให้มีไฟล์สาธิตค้างใน Drive production คืน base64 ให้ฝั่งเรียกไปเปิดดูได้
  */
+/**
+ * อ่านโครงสร้างไฟล์จริงในคิว (read-only) — ?action=peek[&fileId=...]
+ * ไม่ย้ายไฟล์ ไม่สร้าง output แค่แปลงชั่วคราวเพื่อดู header/คอลัมน์/parse แล้วลบ temp ทิ้ง
+ */
+function peekFile_(fileId) {
+  let file;
+  if (fileId) { file = DriveApp.getFileById(fileId); }
+  else {
+    const it = DriveApp.getFolderById(CONFIG.PENDING_FOLDER_ID).getFiles();
+    while (it.hasNext()) { const f = it.next(); if (isSupported_(f.getName()) && f.getSize() > 0) { file = f; break; } }
+  }
+  if (!file) return { ok: false, error: 'ไม่พบไฟล์ที่รองรับในคิว' };
+  const tempId = convertToGoogleSheet_(file);
+  try {
+    const ss = SpreadsheetApp.openById(tempId);
+    const sheets = ss.getSheets().map(function (sh) {
+      const vals = sh.getDataRange().getValues();
+      const disp = sh.getDataRange().getDisplayValues();
+      return { name: sh.getName(), rows: vals.length, cols: (vals[0] || []).length, sample: disp.slice(0, 6) };
+    });
+    let best = null;
+    ss.getSheets().forEach(function (sh) {
+      const v = sh.getDataRange().getValues(), d = sh.getDataRange().getDisplayValues();
+      const p = parseEvaluationMatrix_(v, d);
+      if (p.found && (!best || p.quality > best.quality)) best = Object.assign({ sheet: sh.getName() }, p);
+    });
+    let parse;
+    if (best) {
+      const ca = pAnalyzeComments_(best.respondents);
+      parse = {
+        found: true, sheet: best.sheet, headerRowIndex: best.headerRowIndex,
+        columns: best.columns.map(function (c) { return { i: c.index, role: c.role, header: c.header }; }),
+        items: best.items.map(function (it) { return it.no + ' ' + it.text; }),
+        itemCount: best.items.length, respondentCount: best.respondentCount,
+        years: best.years, duplicates: best.duplicates.length, invalidCount: best.invalidCount,
+        sampleRespondents: best.respondents.slice(0, 3).map(function (r) { return { id: r.id, name: r.name, year: r.year, scores: r.scores, comment: r.comment }; }),
+        commentTotal: ca.total, commentThemes: ca.themes
+      };
+    } else {
+      parse = { found: false, note: 'parser ไม่พบตาราง matrix (อาจเป็นไฟล์ข้อคิดเห็น/รูปแบบอื่น)' };
+    }
+    return { ok: true, action: 'peek', file: file.getName(), fileId: file.getId(), sheets: sheets, parse: parse };
+  } finally {
+    try { DriveApp.getFileById(tempId).setTrashed(true); } catch (e) {}
+  }
+}
+
 function selfExport_() {
   const header = ['เลขที่', 'รหัสนักศึกษา', 'ชื่อ', 'สกุล', 'ชั้นปี', '1.1 ตั้งใจเรียน การเรียน การงาน', '1.2 ส่งงานตรงเวลา', '2.1 มีวินัย', 'ข้อเสนอแนะเพิ่มเติม'];
   const data = [
