@@ -525,7 +525,7 @@ function writeQa_(sh, a, groups, commentAnalysis) {
     ['ตัดสรุปตามชั้นปีใน PDF', 'PASS', 'ใช้ไฟล์แยกรายชั้นปีแทน section สรุป', 'ตรวจว่า PDF ไม่มีตารางสรุปตามชั้นปีปนในไฟล์เดียว'],
     ['PDF ครบ 5 ไฟล์', groups.length === 5 ? 'PASS' : 'REVIEW', 'รวม + ปี1-4', 'export เฉพาะ gid ของ Print_Report_*'],
     ['ข้อเสนอแนะการปรับปรุง', 'PASS', 'สร้างจากข้อ X ต่ำสุด 3 ข้อ', 'ตรวจว่ามีหัวข้อข้อเสนอแนะในทุก Print_Report'],
-    ['ช่องลายเซ็น 3 ช่อง', 'PASS', 'ผู้จัดทำ / ผู้ตรวจสอบ / ผู้อนุมัติ', 'ตรวจท้าย Print_Report ทุกไฟล์'],
+    ['ช่องลายเซ็น', 'PASS', '2 ช่อง: ผู้รับการประเมิน / หน.ผปค.วพอ.พอ.', 'ตรวจท้าย Print_Report ทุกไฟล์'],
     ['ข้อคิดเห็น (Comments_Themes)', commentAnalysis.total > 0 ? 'PASS' : 'INFO', commentAnalysis.total > 0 ? (commentAnalysis.total + ' ราย, ' + commentAnalysis.themes.length + ' ธีม') : 'ไม่พบข้อคิดเห็น จึงไม่สร้าง sheet', 'ถ้ามีข้อคิดเห็นต้องมี theme/จำนวน/ร้อยละ']
   ]);
   const finalRows = rows.concat(extraRows);
@@ -588,14 +588,13 @@ function writePrintGroup_(sh, a, gr, commentAnalysis) {
     nextRow++;
     sh.getRange(nextRow, 1, 1, 8).merge().setValue('ภาคผนวก: สรุปรายบุคคล').setFontWeight('bold');
     const apxHeader = nextRow + 1;
-    sh.getRange(apxHeader, 1, 1, 8).setValues([['ลำดับ', 'รหัส/เลขที่', 'ชื่อ-สกุล', 'ชั้นปี', 'ตอบ/ทั้งหมด', 'X', 'ระดับ', 'ข้อคิดเห็น']]);
+    sh.getRange(apxHeader, 1, 1, 8).setValues([['ลำดับ', 'รหัส/เลขที่', 'ชื่อ-สกุล', 'ชั้นปี', 'X', 'ระดับ', '', 'ข้อคิดเห็น']]);
     sh.getRange(apxHeader, 1, 1, 8).setFontWeight('bold').setBackground('#EAF3FF').setHorizontalAlignment('center');
-    const nItems = (a.items || []).length;
     const CAP = 200;
     const list = gr.subset.slice(0, CAP);
     const apxRows = list.map(function (pp, i) {
       const st = pPersonStats_(pp.scores || []);
-      return [i + 1, pp.id || pp.seq || '', pp.name || '', pp.year || '', st.n + '/' + nItems, st.n ? st.mean : '', st.level, pp.comment || ''];
+      return [i + 1, pp.id || pp.seq || '', pp.name || '', pp.year || '', st.n ? st.mean : '', st.level, '', pp.comment || ''];
     });
     sh.getRange(apxHeader + 1, 1, apxRows.length, 8).setValues(apxRows);
     nextRow = apxHeader + 1 + apxRows.length;
@@ -610,12 +609,12 @@ function writePrintGroup_(sh, a, gr, commentAnalysis) {
   sh.getRange(nextRow, 1, 1, 8).merge().setValue('หมายเหตุ: รายงานสร้างจากระบบอัตโนมัติ ควรตรวจ QA_Log และไฟล์ต้นฉบับก่อนนำไปใช้ทางราชการ');
   nextRow += 2;
 
-  ['ผู้จัดทำรายงาน', 'ผู้ตรวจสอบ', 'ผู้อำนวยการวิทยาลัยพยาบาลทหารอากาศ / ผู้อนุมัติ'].forEach(role => {
+  ['ผู้รับการประเมิน', 'หน.ผปค.วพอ.พอ.'].forEach(role => {
     sh.getRange(nextRow, 1, 1, 8).merge().setValue('ลงชื่อ ....................................................................');
     nextRow++;
     sh.getRange(nextRow, 1, 1, 8).merge().setValue('( .................................................................... )');
     nextRow++;
-    sh.getRange(nextRow, 1, 1, 8).merge().setValue('ตำแหน่ง ' + role);
+    sh.getRange(nextRow, 1, 1, 8).merge().setValue(role);
     nextRow += 2;
   });
 }
