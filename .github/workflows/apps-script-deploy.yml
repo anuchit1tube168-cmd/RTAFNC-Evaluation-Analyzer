@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'google-apps-script/**'
+      - '.github/workflows/apps-script-deploy.yml'
 
 jobs:
   deploy-apps-script:
@@ -25,24 +26,30 @@ jobs:
       - name: Prepare Apps Script project files
         run: |
           mkdir -p gas-dist
-          # คัดลอกไฟล์ .gs ทุกไฟล์ (Code.gs + Parser_v5.gs + Code_v5.gs) ไม่ใช่แค่ Code.gs
-          # มิฉะนั้น Code.gs จะเรียกฟังก์ชันใน Parser_v5.gs ที่ยังไม่ถูก push -> ReferenceError
           cp google-apps-script/*.gs gas-dist/
           cp google-apps-script/appsscript.json gas-dist/appsscript.json
+
+          # v6 safety: Apps Script file load order can be ambiguous.
+          # Append all ZZ_* override files to the end of Code.gs so apiGet_/selfTest_/QA overrides are guaranteed last.
+          for f in $(ls google-apps-script/ZZ_*.gs 2>/dev/null | sort); do
+            echo "" >> gas-dist/Code.gs
+            echo "// ===== appended from ${f} by deploy workflow =====" >> gas-dist/Code.gs
+            cat "$f" >> gas-dist/Code.gs
+          done
+          rm -f gas-dist/ZZ_*.gs
+
           echo "Files staged for clasp push:"
           ls -1 gas-dist
+          echo "Tail of Code.gs after v6 append:"
+          tail -n 80 gas-dist/Code.gs
+
           cd gas-dist
           echo '${{ secrets.CLASP_JSON }}' > .clasp.json
           echo '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
-          # secret CLASP_JSON อาจตั้ง rootDir=google-apps-script (สำหรับใช้ที่ repo root)
-          # แต่ที่นี่ clasp รันใน gas-dist จึงต้องบังคับ rootDir="." ไม่งั้น clasp หาไฟล์ไม่เจอ
-          # แล้วขึ้น "Script is already up to date" โดยไม่ push อะไรเลย
           node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('.clasp.json','utf8'));j.rootDir='.';fs.writeFileSync('.clasp.json',JSON.stringify(j));"
           echo "clasp rootDir set to: $(node -e "console.log(require('./.clasp.json').rootDir)")"
 
       - name: Install clasp
-        # ใช้ clasp v3 (latest) เพราะ credential ใน CLASPRC_JSON เป็นฟอร์แมต v3
-        # (pin v2 ทำให้ auth พัง: "Cannot read properties of undefined (reading 'access_token')")
         run: |
           npm install -g @google/clasp
           clasp --version
@@ -58,9 +65,7 @@ jobs:
           echo "== clasp deploy --help (diagnostic) =="
           clasp deploy --help || true
           echo "== redeploy $DEPLOYMENT_ID =="
-          # clasp v3: 'clasp deploy -i <id>' สร้าง version ใหม่จาก HEAD แล้วอัปเดต deployment เดิม
           OUT=$(clasp deploy -i "$DEPLOYMENT_ID" -d "GitHub redeploy ${{ github.sha }}" 2>&1); echo "$OUT"
-          # ตรวจว่าไม่มี error (clasp บางกรณี print error แต่ exit 0)
           if echo "$OUT" | grep -qiE "error|Expected [0-9]+ argument|Cannot read properties"; then
             echo "redeploy ล้มเหลว"; exit 1
           fi
