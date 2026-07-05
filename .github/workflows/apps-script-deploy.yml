@@ -41,27 +41,26 @@ jobs:
           echo "clasp rootDir set to: $(node -e "console.log(require('./.clasp.json').rootDir)")"
 
       - name: Install clasp
-        # pin v2: workflow ใช้ syntax แบบ positional (clasp version / clasp redeploy <id> <ver> <desc>)
-        # clasp v3 เปลี่ยนเป็น flag ทำให้ redeploy ล้มเหลว "too many arguments for update-deployment"
-        run: npm install -g @google/clasp@2.4.2
+        # ใช้ clasp v3 (latest) เพราะ credential ใน CLASPRC_JSON เป็นฟอร์แมต v3
+        # (pin v2 ทำให้ auth พัง: "Cannot read properties of undefined (reading 'access_token')")
+        run: |
+          npm install -g @google/clasp
+          clasp --version
 
       - name: Push Apps Script code
         working-directory: gas-dist
         run: clasp push --force
 
-      - name: Create Apps Script version and redeploy Web App
+      - name: Redeploy Web App (clasp v3 create-deployment)
         working-directory: gas-dist
         run: |
-          VERSION_OUTPUT=$(clasp version "GitHub deploy ${{ github.sha }}")
-          echo "$VERSION_OUTPUT"
-          VERSION_NUMBER=$(echo "$VERSION_OUTPUT" | grep -Eo '[0-9]+' | tail -1)
-          if [ -z "$VERSION_NUMBER" ]; then
-            echo "Could not parse Apps Script version number"
-            exit 1
-          fi
           DEPLOYMENT_ID="${APPS_SCRIPT_DEPLOYMENT_ID:-$DEFAULT_DEPLOYMENT_ID}"
-          echo "Redeploying Apps Script deployment: $DEPLOYMENT_ID with version: $VERSION_NUMBER"
-          REDEPLOY_OUT=$(clasp redeploy "$DEPLOYMENT_ID" "$VERSION_NUMBER" "GitHub redeploy ${{ github.sha }}" 2>&1); echo "$REDEPLOY_OUT"
-          # clasp บางเวอร์ชัน print error แต่ exit 0 -> ตรวจข้อความ error เองแล้ว fail
-          echo "$REDEPLOY_OUT" | grep -qi "error" && { echo "redeploy ล้มเหลว"; exit 1; }
-          echo "$REDEPLOY_OUT" | grep -qi "Deployed" || echo "หมายเหตุ: ไม่พบคำว่า Deployed ในผลลัพธ์ โปรดตรวจ deployment"
+          echo "== clasp deploy --help (diagnostic) =="
+          clasp deploy --help || true
+          echo "== redeploy $DEPLOYMENT_ID =="
+          # clasp v3: 'clasp deploy -i <id>' สร้าง version ใหม่จาก HEAD แล้วอัปเดต deployment เดิม
+          OUT=$(clasp deploy -i "$DEPLOYMENT_ID" -d "GitHub redeploy ${{ github.sha }}" 2>&1); echo "$OUT"
+          # ตรวจว่าไม่มี error (clasp บางกรณี print error แต่ exit 0)
+          if echo "$OUT" | grep -qiE "error|Expected [0-9]+ argument|Cannot read properties"; then
+            echo "redeploy ล้มเหลว"; exit 1
+          fi
