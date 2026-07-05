@@ -60,6 +60,7 @@ function apiGet_(p) {
     else if (action === 'process') result = processPendingRawFiles();
     else if (action === 'test') result = processOneFile_(DriveApp.getFileById(p.fileId), p.category || '');
     else if (action === 'selftest') result = selfTest_();
+    else if (action === 'selfexport') result = selfExport_();
     else result = getHealth_();
   } catch (err) {
     result = { ok: false, error: String(err && err.stack ? err.stack : err) };
@@ -608,6 +609,74 @@ function writeCommentsThemes_(sh, ca) {
     sh.getRange(3, 1, rows.length, 5).setValues(rows);
   }
   sh.getRange('D:E').setWrap(true);
+}
+
+/**
+ * สาธิตการสร้างไฟล์จริง (Excel + PDF) จากข้อมูลจำลอง — เรียกผ่าน ?action=selfexport
+ * สร้าง Google Sheet ครบทุก tab, export เป็น xlsx + PDF (รายงานรวม), แล้วลบ Sheet ทิ้ง
+ * เพื่อไม่ให้มีไฟล์สาธิตค้างใน Drive production คืน base64 ให้ฝั่งเรียกไปเปิดดูได้
+ */
+function selfExport_() {
+  const header = ['เลขที่', 'รหัสนักศึกษา', 'ชื่อ', 'สกุล', 'ชั้นปี', '1.1 ตั้งใจเรียน การเรียน การงาน', '1.2 ส่งงานตรงเวลา', '2.1 มีวินัย', 'ข้อเสนอแนะเพิ่มเติม'];
+  const data = [
+    [1, '6301', 'กชกร', 'ใจดี', 'ชั้นปีที่ 1', 5, 4, 5, 'อาจารย์สอนดีมาก'],
+    [2, '6302', 'สมชาย', 'รักชาติ', 'ชั้นปีที่ 1', 4, 4, 3, 'เวลากระชั้นไป'],
+    [3, '6303', 'สมหญิง', 'เก่งกล้า', 'ชั้นปีที่ 2', 3, 5, 4, 'เยี่ยมมาก'],
+    [4, '6304', 'ประเสริฐ', 'ตั้งใจ', 'ชั้นปีที่ 2', 5, 5, 5, ''],
+    [5, '6305', 'วิภา', 'ขยัน', 'ชั้นปีที่ 3', 4, 3, 4, 'ห้องเรียนร้อน']
+  ];
+  const values = [header].concat(data);
+  const display = values.map(function (r) { return r.map(function (c) { return String(c); }); });
+  const p = parseEvaluationMatrix_(values, display);
+  const items = p.items.map(function (it) { return { no: it.no, code: it.code, text: it.text, col: it.col, row: it.col + 1 }; });
+  const itemStats = p.itemStats.map(function (x) { return { no: x.no, code: x.code, text: x.text, col: x.col, row: x.col + 1, n: x.n, mean: x.mean, sd: x.sd, level: x.level }; });
+  const a = {
+    rawName: 'ตัวอย่างสาธิต_selfExport.xlsx', category: 'นภาภิบาล', confidence: 1,
+    title: 'รายงานผลการประเมิน (ตัวอย่างสาธิตระบบ v5)',
+    items: items, itemStats: itemStats, scoreRows: p.scoreRows, respondents: p.respondents,
+    overallMean: p.overallMean, overallSd: p.overallSd, invalidCount: p.invalidCount,
+    parseMode: 'wide', sheetName: 'Form Responses 1', respondentCount: p.respondentCount,
+    duplicates: p.duplicates, years: p.years, hasRankColumn: p.hasRankColumn,
+    safeName: safeName_('DEMO_selfExport_' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd_HHmmss'))
+  };
+  const output = createOutputWorkbook_(a);
+  let pdfB64 = '', xlsxB64 = '', err = '';
+  try {
+    const ruam = output.groups[0];
+    pdfB64 = Utilities.base64Encode(exportPdfBytes_(output.spreadsheetId, ruam.printGid));
+    xlsxB64 = Utilities.base64Encode(exportXlsxBytes_(output.spreadsheetId));
+  } catch (e) {
+    err = String(e);
+  } finally {
+    try { DriveApp.getFileById(output.spreadsheetId).setTrashed(true); } catch (e2) {}
+  }
+  return {
+    ok: !err, action: 'selfexport', version: 'v5-per-class-reports', error: err,
+    note: 'ไฟล์ตัวอย่างสร้างจากข้อมูลจำลอง 5 คน แล้วลบ Google Sheet ทิ้งหลัง export (ไม่ค้างใน Drive)',
+    respondents: p.respondentCount, items: items.length,
+    pdfGroups: output.groups.map(function (g) { return { label: g.label, hasData: g.hasData }; }),
+    xlsxBase64: xlsxB64, pdfBase64: pdfB64
+  };
+}
+
+function exportPdfBytes_(spreadsheetId, gid) {
+  const params = [
+    'format=pdf', 'size=A4', 'portrait=false', 'fitw=true', 'scale=4',
+    'sheetnames=false', 'printtitle=false', 'pagenumbers=true', 'gridlines=false', 'fzr=false',
+    'top_margin=0.35', 'bottom_margin=0.35', 'left_margin=0.25', 'right_margin=0.25',
+    'gid=' + encodeURIComponent(gid)
+  ].join('&');
+  const url = 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/export?' + params;
+  const res = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  if (res.getResponseCode() >= 300) throw new Error('PDF export failed: HTTP ' + res.getResponseCode());
+  return res.getBlob().getBytes();
+}
+
+function exportXlsxBytes_(spreadsheetId) {
+  const url = 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/export?format=xlsx';
+  const res = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  if (res.getResponseCode() >= 300) throw new Error('XLSX export failed: HTTP ' + res.getResponseCode());
+  return res.getBlob().getBytes();
 }
 
 function exportPdf_(spreadsheetId, name, gid) {
