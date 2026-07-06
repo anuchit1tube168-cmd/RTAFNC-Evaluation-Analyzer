@@ -18,6 +18,8 @@ function apiGet_(p) {
     else if (action === 'goldenreport') result = getGoldenReport_(p.fileId);
     else if (action === 'goldenexport') result = goldenExport_(p.fileId);
     else if (action === 'goldenexportdemo') result = goldenExportDemo_();
+    else if (action === 'goldentype2') result = goldenType2Export_(p.fileId);
+    else if (action === 'goldentype2demo') result = goldenType2ExportDemo_();
     else if (action === 'selftest') result = selfTest_();
     else result = getHealth_();
   } catch (err) {

@@ -31,7 +31,7 @@ function writeGoldenReportSheet_(sh, a) {
   var r = 7 + rows.length;
   sh.getRange(r, 1, 1, 5).setValues([['', 'รวม', a.total.X, a.total.SD, gLevel_(a.total.X)]]);
   var totalRow = r; r++;
-  sh.getRange(r, 1, 1, 5).merge().setValue('ผลการประเมินความพึงพอใจ: ค่าเฉลี่ย 3.51 ขึ้นไป คิดเป็นร้อยละ ' + a.satisfactionPct);
+  sh.getRange(r, 1, 1, 5).merge().setValue('ผลการประเมินความพึงพอใจ: ค่าเฉลี่ย 3.51 ขึ้นไป คิดเป็นร้อยละ ' + Number(a.satisfactionPct).toFixed(2));
   r += 2;
   ['ผู้รับการประเมิน', 'หน.ผปค.วพอ.พอ.'].forEach(function (role) {
     sh.getRange(r, 1, 1, 5).merge().setValue('ลงชื่อ ...................................................'); r++;
@@ -47,6 +47,7 @@ function writeGoldenReportSheet_(sh, a) {
   sh.getRange('A3:E4').setHorizontalAlignment('center');
   sh.getRange(6, 1, 1, 5).setFontWeight('bold').setBackground('#0B2347').setFontColor('#FFFFFF').setHorizontalAlignment('center');
   sh.getRange(totalRow, 1, 1, 5).setFontWeight('bold').setBackground('#EAF3FF');
+  sh.getRange(7, 3, rows.length + 1, 2).setNumberFormat('0.00'); // X/SD 2 ตำแหน่งเสมอ (รวมแถวรวม)
   if (rows.length) {
     sh.getRange(6, 1, rows.length + 2, 5).setBorder(true, true, true, true, true, true, '#B7C3D6', SpreadsheetApp.BorderStyle.SOLID);
     try { sh.getRange(7, 1, rows.length, 5).applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, false, false); } catch (e) {}
