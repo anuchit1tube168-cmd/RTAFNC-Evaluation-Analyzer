@@ -105,29 +105,43 @@ function parseGoldenActivity_(workbook, names) {
   });
 }
 
-/** ?action=goldenreport[&fileId=] — อ่านไฟล์ golden จริง คืนผลคำนวณ (read-only) */
-function getGoldenReport_(fileId) {
-  var file;
-  if (fileId) { file = DriveApp.getFileById(fileId); }
-  else {
-    var it = DriveApp.getFolderById(CONFIG.PENDING_FOLDER_ID).getFiles();
-    while (it.hasNext()) { var f = it.next(); if (isSupported_(f.getName()) && f.getSize() > 0) { file = f; break; } }
-  }
-  if (!file) return { ok: false, error: 'ไม่พบไฟล์ที่รองรับในคิว' };
+/** อ่าน 1 ไฟล์ → ผล golden (หรือ null ถ้าไม่ใช่รูปแบบกิจกรรม) */
+function gReadOne_(file) {
   var tempId = convertToGoogleSheet_(file);
   try {
     var ss = SpreadsheetApp.openById(tempId);
     var wb = {}, names = [];
     ss.getSheets().forEach(function (sh) { var nm = sh.getName(); names.push(nm); wb[nm] = sh.getDataRange().getValues(); });
     var results = parseGoldenActivity_(wb, names);
-    if (!results.length) {
-      return { ok: true, action: 'goldenreport', file: file.getName(), type: 'ไม่ใช่รูปแบบกิจกรรม/ชมรม (ไม่พบคู่ sheet ดิบ+รายงาน)', sheets: names };
-    }
-    return {
-      ok: true, action: 'goldenreport', file: file.getName(),
-      type: 'กิจกรรม/ชมรม', activityCount: results.length,
-      summary: results.map(function (r) { return { activity: r.activity, respondents: r.respondents, items: r.itemCount, X: r.total.X, SD: r.total.SD, พึงพอใจ: r.satisfactionPct + '%', ตรงgolden: r.itemsMatched + '/' + r.itemCount }; }),
-      activities: results
-    };
+    return { names: names, results: results };
   } finally { try { DriveApp.getFileById(tempId).setTrashed(true); } catch (e) {} }
+}
+
+function gPackResult_(file, r) {
+  if (!r.results.length) {
+    return { ok: true, action: 'goldenreport', file: file.getName(), type: 'ไม่ใช่รูปแบบกิจกรรม/ชมรม (ไม่พบคู่ sheet ดิบ+รายงาน)', sheets: r.names };
+  }
+  return {
+    ok: true, action: 'goldenreport', file: file.getName(),
+    type: 'กิจกรรม/ชมรม', activityCount: r.results.length,
+    summary: r.results.map(function (x) { return { activity: x.activity, respondents: x.respondents, items: x.itemCount, X: x.total.X, SD: x.total.SD, พึงพอใจ: x.satisfactionPct + '%', ตรงgolden: x.itemsMatched + '/' + x.itemCount }; }),
+    activities: r.results
+  };
+}
+
+/** ?action=goldenreport[&fileId=] — ระบุ fileId หรือปล่อยว่างให้ auto หาไฟล์ golden ในคิว */
+function getGoldenReport_(fileId) {
+  if (fileId) return gPackResult_(DriveApp.getFileById(fileId), gReadOne_(DriveApp.getFileById(fileId)));
+  var it = DriveApp.getFolderById(CONFIG.PENDING_FOLDER_ID).getFiles();
+  var candidates = [], scanned = 0, fallback = null;
+  while (it.hasNext() && scanned < 10) {
+    var f = it.next();
+    if (!isSupported_(f.getName()) || f.getSize() === 0) continue;
+    scanned++;
+    var r = gReadOne_(f);
+    if (r.results.length) return gPackResult_(f, r);   // เจอไฟล์ golden → คืนเลย
+    if (!fallback) fallback = { file: f, r: r };
+  }
+  if (fallback) return gPackResult_(fallback.file, fallback.r);
+  return { ok: false, error: 'ไม่พบไฟล์ที่รองรับในคิว' };
 }
