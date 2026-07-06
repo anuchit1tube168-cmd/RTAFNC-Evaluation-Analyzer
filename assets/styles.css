@@ -12,3 +12,6 @@
 .golden-downloads:empty{display:none}
 .pill-link{display:inline-flex;align-items:center;border-radius:15px;padding:12px 16px;background:#eaf3ff;color:#1c4e89;border:1px solid #c7d2fe;font-weight:900;text-decoration:none}
 @media(max-width:860px){.golden-grid{grid-template-columns:1fr}.golden-actions button{width:100%}}
+.golden-hero{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:4px 0 2px}
+.golden-hero .primary{background:linear-gradient(135deg,#0b7a3b,#0f9d58)}
+@media(max-width:860px){.golden-hero button{width:100%}}

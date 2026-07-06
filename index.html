@@ -114,7 +114,12 @@
           </div>
           <span class="pill green" id="goldenPill">พร้อม</span>
         </div>
-        <p class="muted">เลือกประเภทแล้วกดสร้าง — ดาวน์โหลด Excel/PDF ได้ทันทีในเบราว์เซอร์ • <b>ทดลอง</b> = ข้อมูลตัวอย่างในระบบ, <b>จากคิว Drive</b> = ไฟล์จริงที่วางใน 00_วางไฟล์ที่นี่</p>
+        <p class="muted">วิธีใช้ที่ <b>ไม่ต้องเปิด script.google.com</b> (เลี่ยง error ล็อกอิน Google): (1) วางไฟล์ดิบในโฟลเดอร์ Drive <b>00_วางไฟล์ที่นี่</b> ด้วยแอป Google Drive → (2) กดปุ่มเขียวด้านล่าง ระบบตรวจประเภทให้เอง → (3) ดาวน์โหลด Excel/PDF ในหน้านี้เลย</p>
+        <div class="golden-hero">
+          <button class="primary big" onclick="runGolden('goldenauto','อัตโนมัติจากคิว Drive')">⚡ สร้างรายงานอัตโนมัติจากไฟล์ในคิว (ตรวจประเภทให้เอง)</button>
+          <button class="ghost" onclick="openUploadSystem()">เปิดโฟลเดอร์ Drive เพื่อวางไฟล์</button>
+        </div>
+        <p class="muted" style="margin-top:14px">หรือเลือกประเภทเอง — <b>ทดลอง</b> = ข้อมูลตัวอย่างในระบบ, <b>จากคิว Drive</b> = ไฟล์จริงในคิว</p>
         <div class="golden-grid">
           <article class="golden-card">
             <h3>1) กิจกรรม / ชมรม</h3>
