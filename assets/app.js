@@ -50,6 +50,7 @@ function getBackendUrl(){
   if(!url){ setRunStatus('กรุณาวางและบันทึก Google Apps Script Web App URL ก่อน', 'warn'); throw new Error('Missing backend URL'); }
   return url;
 }
+
 // วางไฟล์ดิบผ่านโฟลเดอร์ Drive โดยตรง (เสถียรกว่าเปิดหน้า Apps Script ที่มักติด error ตอนล็อกอิน Google หลายบัญชี)
 const DRIVE_PENDING_FOLDER = 'https://drive.google.com/drive/folders/1fNEzh_47BmVwuNLY3tgnYq0Jy7RsFaue';
 function openUploadSystem(){ window.open(DRIVE_PENDING_FOLDER, '_blank', 'noopener'); }
@@ -73,10 +74,13 @@ function jsonp(action, params={}){
 async function healthCheck(){
   try{
     setPill('connectionPill', 'Checking', '');
-    const data = await jsonp('health');
+    const data = await jsonp('healthv6');
     if (data && data.ok === false) throw new Error(data.error || 'Backend returned ok=false');
-    setBackendStatus(`Backend พร้อมใช้งาน • ${data.version || data.name || 'Apps Script'}`, 'ok');
-    setPill('connectionPill', 'Online', 'green');
+    const version = data.version || data.name || 'Apps Script';
+    const convert = data.convertMode ? ' • ' + data.convertMode : '';
+    const isV6 = version === 'v6-source-driven-reports';
+    setBackendStatus(`Backend ${isV6 ? 'v6 พร้อมใช้งาน' : 'ตอบสนองแต่ยังไม่ใช่ v6'} • ${version}${convert}`, isV6 ? 'ok' : 'warn');
+    setPill('connectionPill', isV6 ? 'v6 Online' : 'Check v6', isV6 ? 'green' : '');
     printRaw(data);
   }catch(err){
     setBackendStatus('Backend ยังไม่ตอบสนอง: ' + (err.message || err), 'warn');
@@ -86,14 +90,29 @@ async function healthCheck(){
 
 async function selfTest(){
   try{
-    setRunStatus('กำลังทดสอบระบบ (parser + QA gate) ด้วยข้อมูลจำลอง...', 'warn');
-    setPill('lastRunPill', 'Self-test', '');
-    const data = await jsonp('selftest');
+    setRunStatus('กำลังทดสอบระบบ v6 (parser + QA gate + Q1/Q2 hard failure)...', 'warn');
+    setPill('lastRunPill', 'v6 Self-test', '');
+    const data = await jsonp('selftestv6');
     if (data && data.ok === false) throw new Error(data.error || 'Backend returned ok=false');
     const passed = data.passed ?? 0, total = data.total ?? 0;
-    setRunStatus(`ทดสอบระบบ: ผ่าน ${passed}/${total} • ${data.allPass ? 'พร้อมใช้งาน' : 'มีข้อไม่ผ่าน โปรดตรวจ'}`, data.allPass ? 'ok' : 'warn');
-    setPill('lastRunPill', data.allPass ? 'Self-test OK' : 'Self-test fail', data.allPass ? 'green' : '');
+    setRunStatus(`ทดสอบ v6: ผ่าน ${passed}/${total} • ${data.allPass ? 'พร้อมใช้ต่อขั้น Peek/Process' : 'มีข้อไม่ผ่าน โปรดตรวจ'}`, data.allPass ? 'ok' : 'warn');
+    setPill('lastRunPill', data.allPass ? 'v6 Self-test OK' : 'v6 Self-test fail', data.allPass ? 'green' : '');
     renderSelfTest(data.checks || []);
+    printRaw(data);
+  }catch(err){ showError(err); }
+}
+
+async function peekQueue(){
+  try{
+    setRunStatus('กำลังตรวจตัวอย่างไฟล์ดิบจริงด้วย v6 peek...', 'warn');
+    setPill('lastRunPill', 'Peek', '');
+    const data = await jsonp('peek');
+    if (data && data.ok === false) throw new Error(data.error || 'Backend returned ok=false');
+    const best = data.best || data;
+    const ok = best && Number(best.itemCount || 0) > 0 && Number(best.respondentCount || 0) > 0;
+    setRunStatus(ok ? `Peek ผ่าน: ${best.itemCount} ข้อ / ${best.respondentCount} ผู้ตอบ` : 'Peek ยังไม่ผ่าน: ไม่พบ item/respondent ที่ชัดเจน', ok ? 'ok' : 'warn');
+    setPill('lastRunPill', ok ? 'Peek OK' : 'Peek review', ok ? 'green' : '');
+    renderPeek(data);
     printRaw(data);
   }catch(err){ showError(err); }
 }
@@ -101,6 +120,19 @@ async function selfTest(){
 function renderSelfTest(checks){
   const rows = checks.map(c => `<tr><td><b>${esc(c.name)}</b></td><td>${c.pass ? '<b class="ok-text">ผ่าน</b>' : '<b class="warn-text">ไม่ผ่าน</b>'}</td><td>${esc(c.detail || '')}</td></tr>`).join('');
   document.getElementById('resultTable').innerHTML = `<table><thead><tr><th>รายการทดสอบ</th><th>ผล</th><th>รายละเอียด</th></tr></thead><tbody>${rows || '<tr><td colspan="3">ไม่มีผลทดสอบ</td></tr>'}</tbody></table>`;
+}
+
+function renderPeek(data){
+  const best = data.best || data || {};
+  const items = Array.isArray(best.firstItems) ? best.firstItems : [];
+  const rows = [
+    ['ไฟล์', best.file || data.file || ''],
+    ['จำนวนข้อ', best.itemCount || ''],
+    ['จำนวนผู้ตอบ', best.respondentCount || ''],
+    ['ชั้นปีที่พบ', Array.isArray(best.years) ? best.years.join(', ') : (best.yearSource || '')],
+    ['ตัวอย่างข้อ', items.join(' | ')]
+  ].map(r => `<tr><td><b>${esc(r[0])}</b></td><td>${esc(r[1])}</td></tr>`).join('');
+  document.getElementById('resultTable').innerHTML = `<table><thead><tr><th>หัวข้อ</th><th>ค่า</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 async function listFiles(){
@@ -118,9 +150,9 @@ async function listFiles(){
 }
 
 async function processFiles(){
-  if(!confirm('ยืนยันประมวลผลไฟล์ใน 00_วางไฟล์ที่นี่ ?')) return;
+  if(!confirm('ยืนยันประมวลผลไฟล์ใน 00_วางไฟล์ที่นี่ ? ควรกด “ทดสอบระบบ” และ “ตรวจคิว” ก่อน')) return;
   try{
-    setRunStatus('กำลังประมวลผล: แปลงไฟล์ → วิเคราะห์ → export Excel/PDF...', 'warn');
+    setRunStatus('กำลังประมวลผล v6: แปลงไฟล์ → วิเคราะห์ → export Excel/PDF...', 'warn');
     setPill('lastRunPill', 'Processing', '');
     const data = await jsonp('process');
     if (data && data.ok === false) throw new Error(data.error || 'Backend returned ok=false');
@@ -217,8 +249,13 @@ function renderFiles(files){
 }
 
 function renderResults(results){
-  const rows = results.map(r => `<tr><td><b>${esc(r.file || '')}</b></td><td>${badge(r.status || '')}</td><td>${qaBadge(r.qaStatus)}</td><td>${esc(r.category || '')}</td><td>${r.respondentCount ?? ''}</td><td>${r.mean ?? ''}</td><td>${r.sd ?? ''}</td><td>${r.outputSpreadsheetUrl ? `<a href="${r.outputSpreadsheetUrl}" target="_blank">Excel/Sheet</a>` : ''}</td><td>${pdfLinks(r)}</td><td>${resultNote(r)}</td></tr>`).join('');
-  document.getElementById('resultTable').innerHTML = `<table><thead><tr><th>ไฟล์</th><th>สถานะ</th><th>QA</th><th>หมวด</th><th>ผู้ตอบ</th><th>X</th><th>SD</th><th>ตาราง</th><th>PDF (รวม+รายชั้นปี)</th><th>หมายเหตุ</th></tr></thead><tbody>${rows || '<tr><td colspan="10">ไม่มีผลลัพธ์</td></tr>'}</tbody></table>`;
+  const rows = results.map(r => `<tr><td><b>${esc(r.file || '')}</b></td><td>${badge(r.status || '')}</td><td>${qaBadge(r.qaStatus)}</td><td>${esc(r.category || '')}</td><td>${esc(r.respondentCount ?? r.respondents ?? '')}</td><td>${esc(r.itemCount ?? '')}</td><td>${esc(r.mean ?? r.overallMean ?? '')}</td><td>${esc(r.sd ?? r.overallSd ?? '')}</td><td>${sheetLink(r)}</td><td>${pdfLinks(r)}</td><td>${resultNote(r)}</td></tr>`).join('');
+  document.getElementById('resultTable').innerHTML = `<table><thead><tr><th>ไฟล์</th><th>สถานะ</th><th>QA</th><th>หมวด</th><th>ผู้ตอบ</th><th>ข้อ</th><th>X</th><th>SD</th><th>ตาราง</th><th>PDF</th><th>หมายเหตุ</th></tr></thead><tbody>${rows || '<tr><td colspan="11">ไม่มีผลลัพธ์</td></tr>'}</tbody></table>`;
+}
+
+function sheetLink(r){
+  const url = r.outputSpreadsheetUrl || r.sheetUrl || r.outputUrl;
+  return url ? `<a href="${url}" target="_blank">Excel/Sheet</a>` : '';
 }
 
 function qaBadge(qa){
@@ -228,10 +265,10 @@ function qaBadge(qa){
 }
 
 function pdfLinks(r){
-  const list = Array.isArray(r.pdfUrls) && r.pdfUrls.length ? r.pdfUrls : (r.pdfUrl ? [{ name: 'PDF', url: r.pdfUrl, hasData: true }] : []);
+  const list = Array.isArray(r.pdfUrls) && r.pdfUrls.length ? r.pdfUrls : (r.pdfUrl ? [{ label: 'PDF', url: r.pdfUrl, hasData: true }] : []);
   if(!list.length) return '';
   return list.map(p => {
-    const label = esc(p.name || 'PDF');
+    const label = esc(p.label || p.name || 'PDF');
     const flag = (p.hasData === false) ? ' <span class="warn-text">(ว่าง)</span>' : '';
     return `<a href="${p.url}" target="_blank">${label}</a>${flag}`;
   }).join('<br>');
@@ -240,6 +277,8 @@ function pdfLinks(r){
 function resultNote(r){
   const parts = [];
   if(r.message) parts.push(esc(r.message));
+  if(r.version) parts.push('version: ' + esc(r.version));
+  if(r.classYearSource) parts.push('class source: ' + esc(r.classYearSource));
   if(Array.isArray(r.qaFailures) && r.qaFailures.length) parts.push('<span class="warn-text">ต้องแก้: ' + esc(r.qaFailures.join('; ')) + '</span>');
   if(Array.isArray(r.qaWarnings) && r.qaWarnings.length) parts.push('ข้อควรตรวจ: ' + esc(r.qaWarnings.join('; ')));
   if(r.duplicateCount) parts.push('ผู้ตอบซ้ำ: ' + r.duplicateCount);
