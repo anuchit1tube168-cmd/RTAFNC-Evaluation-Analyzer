@@ -20,6 +20,7 @@
       <nav>
         <a href="#command" class="active">ศูนย์ควบคุม</a>
         <a href="#connection">Backend</a>
+        <a href="#golden">สร้างรายงาน</a>
         <a href="#folders">Drive Flow</a>
         <a href="#workflow">Workflow</a>
         <a href="#results">ผลลัพธ์</a>
@@ -102,6 +103,46 @@
           <button class="danger" onclick="processFiles()">ประมวลผลคิว</button>
         </div>
         <div id="backendStatus" class="status">กำลังตรวจสถานะ Backend...</div>
+      </section>
+
+      <section id="golden" class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow dark">Golden Report Generator</p>
+            <h2>สร้างรายงานสำเร็จรูป (Excel + PDF) พร้อมดาวน์โหลด</h2>
+          </div>
+          <span class="pill green" id="goldenPill">พร้อม</span>
+        </div>
+        <p class="muted">เลือกประเภทแล้วกดสร้าง — ดาวน์โหลด Excel/PDF ได้ทันทีในเบราว์เซอร์ • <b>ทดลอง</b> = ข้อมูลตัวอย่างในระบบ, <b>จากคิว Drive</b> = ไฟล์จริงที่วางใน 00_วางไฟล์ที่นี่</p>
+        <div class="golden-grid">
+          <article class="golden-card">
+            <h3>1) กิจกรรม / ชมรม</h3>
+            <p>ตาราง ข้อความ • X • SD • ระดับ</p>
+            <div class="golden-actions">
+              <button onclick="runGolden('goldenexportdemo','ประเภท 1 (ทดลอง)')">ทดลอง</button>
+              <button class="secondary" onclick="runGolden('goldenexport','ประเภท 1 (จากคิว)')">จากคิว Drive</button>
+            </div>
+          </article>
+          <article class="golden-card">
+            <h3>2) ผู้สอนรายวิชา</h3>
+            <p>จับคู่ตามชื่ออาจารย์ • รายผู้สอน</p>
+            <div class="golden-actions">
+              <button onclick="runGolden('goldentype2demo','ประเภท 2 (ทดลอง)')">ทดลอง</button>
+              <button class="secondary" onclick="runGolden('goldentype2','ประเภท 2 (จากคิว)')">จากคิว Drive</button>
+            </div>
+          </article>
+          <article class="golden-card">
+            <h3>3) อัตลักษณ์ งาม/สง่า</h3>
+            <p>ตารางหลายมิติ • ภาพรวม+รายชั้นปี</p>
+            <div class="golden-actions">
+              <button onclick="runGolden('goldentype3demo','ประเภท 3 (ทดลอง)')">ทดลอง</button>
+              <button class="secondary" onclick="runGolden('goldentype3','ประเภท 3 (จากคิว)')">จากคิว Drive</button>
+            </div>
+          </article>
+        </div>
+        <div id="goldenStatus" class="status">ยังไม่ได้สร้างรายงาน</div>
+        <div id="goldenDownloads" class="golden-downloads"></div>
+        <div class="table-wrap" id="goldenResult"></div>
       </section>
 
       <section id="folders" class="folder-section">

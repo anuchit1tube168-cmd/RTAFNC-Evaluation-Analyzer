@@ -132,6 +132,82 @@ async function processFiles(){
   }catch(err){ showError(err); }
 }
 
+/* ===== Golden report generator (run + download Excel/PDF in-browser) ===== */
+let GOLDEN_LAST = null;
+function setGoldenStatus(text, cls){ const el=document.getElementById('goldenStatus'); if(el){ el.textContent=text; el.className='status ' + (cls || ''); } }
+
+async function runGolden(action, label){
+  try{
+    setGoldenStatus('กำลังสร้างรายงาน ' + label + ' ... (อาจใช้เวลาสักครู่)', 'warn');
+    setPill('goldenPill', 'Working', '');
+    document.getElementById('goldenDownloads').innerHTML = '';
+    document.getElementById('goldenResult').innerHTML = '';
+    const data = await jsonp(action);
+    if(data && data.ok === false) throw new Error(data.error || 'สร้างรายงานไม่สำเร็จ');
+    renderGoldenSummary(data);
+    renderGoldenDownloads(data);
+    const has = (data.pdfBase64 || data.xlsxBase64);
+    setGoldenStatus(has ? ('สร้างรายงานสำเร็จ: ' + label + ' — กดปุ่มดาวน์โหลดด้านล่าง') : ('สำเร็จ: ' + label + ' (ไม่มีไฟล์แนบ)'), 'ok');
+    setPill('goldenPill', 'สำเร็จ', 'green');
+    printRaw(stripBase64(data));
+  }catch(err){
+    setGoldenStatus('ERROR: ' + (err.message || err), 'warn');
+    setPill('goldenPill', 'Error', '');
+    printRaw({ error: String(err && err.stack ? err.stack : err) });
+  }
+}
+
+function renderGoldenSummary(data){
+  const s = Array.isArray(data.summary) ? data.summary : [];
+  const box = document.getElementById('goldenResult');
+  if(!s.length){ box.innerHTML = ''; return; }
+  const cols = Object.keys(s[0]);
+  const head = cols.map(c => `<th>${esc(c)}</th>`).join('');
+  const body = s.map(r => `<tr>${cols.map(c => `<td>${esc(r[c])}</td>`).join('')}</tr>`).join('');
+  box.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function renderGoldenDownloads(data){
+  GOLDEN_LAST = data;
+  const box = document.getElementById('goldenDownloads');
+  const parts = [];
+  if(data.xlsxBase64) parts.push('<button onclick="downloadGolden(\'xlsx\')">⬇ ดาวน์โหลด Excel (.xlsx)</button>');
+  if(data.pdfBase64) parts.push('<button class="secondary" onclick="downloadGolden(\'pdf\')">⬇ ดาวน์โหลด PDF</button>');
+  if(data.outputUrl) parts.push('<a class="pill-link" href="' + data.outputUrl + '" target="_blank" rel="noopener">เปิดใน Google Sheets</a>');
+  box.innerHTML = parts.join(' ');
+}
+
+function downloadGolden(kind){
+  if(!GOLDEN_LAST) return;
+  const map = {
+    xlsx: ['xlsxBase64', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx'],
+    pdf:  ['pdfBase64', 'application/pdf', 'pdf']
+  };
+  const spec = map[kind]; if(!spec) return;
+  const b64 = GOLDEN_LAST[spec[0]]; if(!b64) return;
+  const stamp = new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
+  downloadBase64(b64, spec[1], (GOLDEN_LAST.action || 'golden_report') + '_' + stamp + '.' + spec[2]);
+}
+
+function downloadBase64(b64, mime, filename){
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  const blob = new Blob([bytes], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function stripBase64(data){
+  const c = Object.assign({}, data);
+  if(c.pdfBase64) c.pdfBase64 = '[pdf ' + c.pdfBase64.length + ' chars base64]';
+  if(c.xlsxBase64) c.xlsxBase64 = '[xlsx ' + c.xlsxBase64.length + ' chars base64]';
+  return c;
+}
+
 function renderFiles(files){
   const rows = files.map(f => `<tr><td><b>${esc(f.name)}</b></td><td>${formatBytes(f.size)}</td><td>${esc(f.mimeType)}</td><td>${f.supported ? '<b class="ok-text">รองรับ</b>' : '<b class="warn-text">ไม่รองรับ</b>'}</td><td><a href="${f.url}" target="_blank">เปิดใน Drive</a></td></tr>`).join('');
   document.getElementById('resultTable').innerHTML = `<table><thead><tr><th>ชื่อไฟล์</th><th>ขนาด</th><th>MIME</th><th>สถานะ</th><th>ลิงก์</th></tr></thead><tbody>${rows || '<tr><td colspan="5">ไม่พบไฟล์ใน 00_วางไฟล์ที่นี่</td></tr>'}</tbody></table>`;
