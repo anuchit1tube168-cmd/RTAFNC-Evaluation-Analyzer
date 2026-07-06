@@ -22,6 +22,7 @@ function apiGet_(p) {
     else if (action === 'goldentype2demo') result = goldenType2ExportDemo_();
     else if (action === 'goldentype3') result = goldenType3Export_(p.fileId);
     else if (action === 'goldentype3demo') result = goldenType3ExportDemo_();
+    else if (action === 'goldenauto') result = goldenAutoQueue_(p.fileId);
     else if (action === 'selftest') result = selfTest_();
     else result = getHealth_();
   } catch (err) {
