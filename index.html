@@ -44,7 +44,7 @@
         <div class="topbar-actions">
           <button class="ghost" onclick="selfTest()">ทดสอบระบบ</button>
           <button class="ghost" onclick="listFiles()">ตรวจคิว</button>
-          <button class="primary" onclick="openUploadSystem()">เปิดหน้าอัปโหลด</button>
+          <button class="primary" onclick="openUploadSystem()">วางไฟล์ใน Drive</button>
         </div>
       </header>
 
@@ -55,7 +55,7 @@
             <h2>RTAFNC Evaluation Analyzer</h2>
             <p>จัดการไฟล์แบบประเมิน ตั้งแต่ไฟล์ดิบจนถึงรายงานพร้อมตรวจ QA ก่อนใช้ทางราชการ</p>
             <div class="hero-actions">
-              <button class="primary big" onclick="openUploadSystem()">อัปโหลด/ประมวลผลจริง</button>
+              <button class="primary big" onclick="openUploadSystem()">วางไฟล์ใน Drive (อัปโหลด)</button>
               <button class="danger big" onclick="processFiles()">ประมวลผลคิว</button>
             </div>
           </div>
@@ -91,16 +91,17 @@
           </div>
           <span class="pill" id="connectionPill">Checking</span>
         </div>
-        <p class="muted">หน้า GitHub Pages ทำหน้าที่เป็น Portal ส่วนการอัปโหลดและประมวลผลจริงทำผ่าน Apps Script Web App ที่มีสิทธิ์เขียน Google Drive</p>
+        <p class="muted">หน้านี้เรียก backend อัตโนมัติผ่าน API แล้ว — <b>ไม่ต้องเปิด script.google.com เอง</b>. วิธีใช้: (1) วางไฟล์ดิบในโฟลเดอร์ Drive <b>00_วางไฟล์ที่นี่</b> ด้วยแอป Google Drive (2) มาที่หัวข้อ “สร้างรายงาน” แล้วกด “จากคิว Drive”. หากเปิดลิงก์ script.google.com ตรง ๆ แล้วขึ้น “ไม่สามารถเปิดไฟล์ได้” ให้เปิดใน <b>โหมดไม่ระบุตัวตน (Incognito)</b> หรือออกจากบัญชี Google ที่ล็อกอินหลายบัญชี</p>
         <div class="url-row">
           <input id="gasUrl" placeholder="https://script.google.com/macros/s/xxxxx/exec" />
           <button onclick="saveBackendUrl()">บันทึก</button>
           <button class="secondary" onclick="resetBackendUrl()">ค่าเริ่มต้น</button>
         </div>
         <div class="action-strip">
-          <button onclick="openUploadSystem()">เปิดหน้าอัปโหลดจริง</button>
+          <button onclick="openUploadSystem()">เปิดโฟลเดอร์ Drive (วางไฟล์)</button>
           <button onclick="listFiles()">ตรวจไฟล์รอคิว</button>
           <button class="danger" onclick="processFiles()">ประมวลผลคิว</button>
+          <button class="ghost" onclick="openAppsScriptPage()">หน้าอัปโหลด Apps Script (สำรอง)</button>
         </div>
         <div id="backendStatus" class="status">กำลังตรวจสถานะ Backend...</div>
       </section>

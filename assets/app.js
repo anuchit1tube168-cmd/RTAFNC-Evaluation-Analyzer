@@ -50,7 +50,10 @@ function getBackendUrl(){
   if(!url){ setRunStatus('กรุณาวางและบันทึก Google Apps Script Web App URL ก่อน', 'warn'); throw new Error('Missing backend URL'); }
   return url;
 }
-function openUploadSystem(){ window.open(getBackendUrl(), '_blank', 'noopener,noreferrer'); }
+// วางไฟล์ดิบผ่านโฟลเดอร์ Drive โดยตรง (เสถียรกว่าเปิดหน้า Apps Script ที่มักติด error ตอนล็อกอิน Google หลายบัญชี)
+const DRIVE_PENDING_FOLDER = 'https://drive.google.com/drive/folders/1fNEzh_47BmVwuNLY3tgnYq0Jy7RsFaue';
+function openUploadSystem(){ window.open(DRIVE_PENDING_FOLDER, '_blank', 'noopener'); }
+function openAppsScriptPage(){ window.open(getBackendUrl(), '_blank', 'noopener,noreferrer'); }
 
 function jsonp(action, params={}){
   const url = getBackendUrl();
