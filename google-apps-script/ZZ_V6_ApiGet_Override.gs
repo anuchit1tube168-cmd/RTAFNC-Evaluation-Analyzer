@@ -15,6 +15,7 @@ function apiGet_(p) {
     else if (action === 'test') result = processOneFile_(DriveApp.getFileById(p.fileId), p.category || '');
     else if (action === 'peek') result = peekFile_(p.fileId);
     else if (action === 'exportreal') result = exportRealFile_(p.fileId);
+    else if (action === 'goldenreport') result = getGoldenReport_(p.fileId);
     else if (action === 'selftest') result = selfTest_();
     else result = getHealth_();
   } catch (err) {
