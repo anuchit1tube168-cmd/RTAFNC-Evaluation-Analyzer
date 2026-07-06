@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RTAFNC v6 Runtime Test</title>
+  <style>
+    body{margin:0;font-family:system-ui,Tahoma,sans-serif;background:#f7f3ea;color:#111827}.wrap{max-width:980px;margin:auto;padding:24px}.card{background:white;border:1px solid #eadfcc;border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 12px 28px rgba(80,50,10,.08)}h1{font-size:42px;line-height:1;margin:0 0 8px}.muted{color:#6b7280}.rule{font-size:20px;font-weight:800;color:#c84b16}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.box{border:1px dashed #dccbad;border-radius:14px;padding:12px}.btns{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}.btn{border:0;border-radius:12px;padding:12px 14px;font-weight:800;color:white;background:#111827;cursor:pointer}.btn.warn{background:#b45309}.btn.clear{background:#b91c1c}.status{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.kpi{background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:12px}.kpi b{display:block;font-size:22px}.pass{color:#047857}.review{color:#b45309}.fail{color:#b91c1c}pre{background:#0f172a;color:#d1fae5;border-radius:16px;padding:16px;min-height:230px;overflow:auto;white-space:pre-wrap}code{background:#f3f4f6;padding:2px 6px;border-radius:6px}@media(max-width:800px){.grid,.status{grid-template-columns:1fr}h1{font-size:34px}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <p class="rule">อ่านก่อน → คิดก่อน → แก้ทีละส่วน → ตรวจสอบเสมอ</p>
+      <h1>RTAFNC Evaluation Analyzer v6</h1>
+      <p class="muted">หน้าเว็บทดสอบ runtime จริง: Health → Selftest → Peek → Process</p>
+      <div class="grid">
+        <div class="box"><b>Plan</b><br><span class="muted">อ่าน error/log ก่อน</span></div>
+        <div class="box"><b>Build</b><br><span class="muted">แก้ทีละ patch</span></div>
+        <div class="box"><b>Review</b><br><span class="muted">ตรวจ JSON จริง</span></div>
+        <div class="box"><b>Ship</b><br><span class="muted">ต้องมี sheetUrl/pdfUrl</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Runtime Controls</h2>
+      <p class="muted">กดตามลำดับ ห้ามกด Process ถ้า Health/Selftest/Peek ยังไม่ผ่าน</p>
+      <div class="btns">
+        <button class="btn" onclick="run('healthv6')">1 Health v6</button>
+        <button class="btn" onclick="run('selftestv6')">2 Selftest v6</button>
+        <button class="btn" onclick="run('peek')">3 Peek</button>
+        <button class="btn warn" onclick="run('process')">4 Process</button>
+        <button class="btn clear" onclick="clearOut()">Clear</button>
+      </div>
+      <div class="status">
+        <div class="kpi">Health<b id="s-health" class="review">WAIT</b></div>
+        <div class="kpi">Selftest<b id="s-selftest" class="review">WAIT</b></div>
+        <div class="kpi">Peek<b id="s-peek" class="review">WAIT</b></div>
+        <div class="kpi">Process<b id="s-process" class="review">WAIT</b></div>
+      </div>
+      <h3>JSON Result</h3>
+      <pre id="out">พร้อมทดสอบ</pre>
+    </section>
+
+    <section class="card">
+      <h2>Ship Gate</h2>
+      <p>Production PASS เฉพาะเมื่อได้ <code>status=SUCCESS</code>, <code>sheetUrl/outputSpreadsheetUrl</code> และ <code>pdfUrl/pdfUrls</code> ไม่ว่าง</p>
+      <p class="muted" id="api"></p>
+    </section>
+  </main>
+<script>
+const API='https://script.google.com/macros/s/AKfycbz3Uq3oJtOu95URz2HfcgdPnoRYPdaJfFoRi1Eh9-9sRkTx-_iEODKFNN903N0BcVQq/exec';
+document.getElementById('api').textContent='Endpoint: '+API;
+function set(id, cls, txt){const e=document.getElementById(id);e.className=cls;e.textContent=txt;}
+function clearOut(){document.getElementById('out').textContent='พร้อมทดสอบ';}
+function evalResult(action,data){
+ if(action==='healthv6'){set('s-health',data&&data.version==='v6-source-driven-reports'?'pass':'fail',data&&data.version==='v6-source-driven-reports'?'PASS':'FAIL');}
+ if(action==='selftestv6'){set('s-selftest',data&&data.allPass===true?'pass':'fail',data&&data.allPass===true?'PASS':'FAIL');}
+ if(action==='peek'){const b=data&&(data.best||data);const ok=b&&Number(b.itemCount||0)>0&&Number(b.respondentCount||0)>0;set('s-peek',ok?'pass':'review',ok?'PASS':'REVIEW');}
+ if(action==='process'){const arr=data&&(data.results||[data]);const ok=Array.isArray(arr)&&arr.some(r=>r&&r.status==='SUCCESS'&&(r.outputSpreadsheetUrl||r.sheetUrl)&&(r.pdfUrls||r.pdfUrl));set('s-process',ok?'pass':'review',ok?'PASS':'REVIEW');}
+}
+async function run(action){
+ const out=document.getElementById('out');out.textContent='กำลังเรียก '+action+' ...';
+ try{const res=await fetch(API+'?action='+encodeURIComponent(action));const text=await res.text();let data;try{data=JSON.parse(text)}catch(e){data={ok:false,raw:text,parseError:String(e)}}out.textContent=JSON.stringify(data,null,2);evalResult(action,data)}
+ catch(err){out.textContent=JSON.stringify({ok:false,action,error:String(err),note:'ถ้า CORS ให้เปิด Apps Script action URL ตรง'},null,2)}
+}
+</script>
+</body>
+</html>
