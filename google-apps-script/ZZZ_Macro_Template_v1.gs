@@ -14,15 +14,15 @@ function apiGet_(p){
 }
 
 function macroTemplateV1_(p){
-  if(!p.rawId) throw new Error('missing rawId');
-  if(!p.templateId) throw new Error('missing templateId');
-  var rawFile=DriveApp.getFileById(p.rawId);
-  var tplFile=DriveApp.getFileById(p.templateId);
+  var rawId=normalizeDriveIdV1_(p.rawId||p.rawUrl,'rawId');
+  var templateId=normalizeDriveIdV1_(p.templateId||p.templateUrl,'templateId');
+  var rawFile=getDriveFileSafeV1_(rawId,'raw');
+  var tplFile=getDriveFileSafeV1_(templateId,'template');
   var rawTempId=convertToGoogleSheet_(rawFile);
   var rawSs=SpreadsheetApp.openById(rawTempId);
   var rawSh=rawSs.getSheets()[0];
   var parsed=parseEvaluationMatrix_(rawSh.getDataRange().getValues(),rawSh.getDataRange().getDisplayValues());
-  if(!parsed.found) throw new Error('raw parse failed');
+  if(!parsed.found) throw new Error('raw parse failed: ไม่พบตารางคะแนนในไฟล์ดิบ '+rawFile.getName());
   var outName=safeName_('macro_copy_'+tplFile.getName().replace(/\.xlsx$/i,'')+'_'+Utilities.formatDate(new Date(),'Asia/Bangkok','yyyyMMdd_HHmmss'));
   var outId=convertTemplateBlobV1_(tplFile.getBlob(),outName);
   var outSs=SpreadsheetApp.openById(outId);
@@ -34,7 +34,25 @@ function macroTemplateV1_(p){
   var pdf=exportPdf_(outId,safeName_(outName)+'.pdf',sh.getSheetId());
   try{if(!CONFIG.KEEP_TEMP_SHEETS)DriveApp.getFileById(rawTempId).setTrashed(true);}catch(e){}
   appendLog_(rawFile.getName(),'SUCCESS','macro_template_v1','copy template then write values',outSs.getUrl(),pdf.url);
-  return {ok:true,status:'SUCCESS',version:'macro-template-v1',rawFile:rawFile.getName(),templateFile:tplFile.getName(),outputSpreadsheetUrl:outSs.getUrl(),pdfUrl:pdf.url,items:parsed.items.length,respondents:parsed.respondentCount,written:written};
+  return {ok:true,status:'SUCCESS',version:'macro-template-v1',rule:'copy template first; do not rebuild layout',rawId:rawId,templateId:templateId,rawFile:rawFile.getName(),templateFile:tplFile.getName(),outputSpreadsheetUrl:outSs.getUrl(),pdfUrl:pdf.url,items:parsed.items.length,respondents:parsed.respondentCount,written:written};
+}
+
+function normalizeDriveIdV1_(input,label){
+  var s=String(input||'').trim();
+  if(!s) throw new Error('missing '+label);
+  var m=s.match(/\/d\/([A-Za-z0-9_-]{20,})/);
+  if(m) return m[1];
+  m=s.match(/[?&]id=([A-Za-z0-9_-]{20,})/);
+  if(m) return m[1];
+  m=s.match(/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/);
+  if(m) return m[1];
+  m=s.match(/[-\w]{20,}/);
+  if(m) return m[0];
+  throw new Error('invalid '+label+': '+s);
+}
+
+function getDriveFileSafeV1_(id,label){
+  try{return DriveApp.getFileById(id);}catch(e){throw new Error('cannot open '+label+' fileId='+id+' : ตรวจว่าเป็น File ID ที่ถูกต้อง และบัญชีที่ deploy มีสิทธิ์เข้าถึงไฟล์นี้');}
 }
 
 function convertTemplateBlobV1_(blob,name){
