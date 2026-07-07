@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#071b3a" />
-  <title>RTAFNC Evaluation Analyzer</title>
+  <title>RTAFNC Assessment Web App</title>
   <link rel="stylesheet" href="assets/styles.css" />
 </head>
 <body>
@@ -14,22 +14,20 @@
         <div class="brand-mark">NC</div>
         <div>
           <strong>RTAFNC</strong>
-          <span>Evaluation Analyzer</span>
+          <span>Assessment Web App</span>
         </div>
       </div>
       <nav>
-        <a href="#command" class="active">ศูนย์ควบคุม</a>
+        <a href="#command" class="active">ใช้งานจริง</a>
         <a href="#connection">Backend</a>
-        <a href="#golden">สร้างรายงาน</a>
-        <a href="#folders">Drive Flow</a>
-        <a href="#workflow">Workflow</a>
+        <a href="#workflow">ขั้นตอน</a>
         <a href="#results">ผลลัพธ์</a>
       </nav>
       <div class="sidebar-note">
         <span class="dot"></span>
         <div>
-          <b>Production Mode</b>
-          <p>GitHub Pages + Apps Script + Google Drive</p>
+          <b>Production Queue Mode</b>
+          <p>วางไฟล์ใน Drive → Process → Excel/PDF</p>
         </div>
       </div>
     </aside>
@@ -38,48 +36,50 @@
       <header class="topbar">
         <div>
           <p class="eyebrow">วิทยาลัยพยาบาลทหารอากาศ • ปีการศึกษา 2568</p>
-          <h1>ระบบประมวลผลแบบประเมินอัตโนมัติ</h1>
-          <p class="lead">อัปโหลดไฟล์ดิบ ตรวจคิว แปลงข้อมูล วิเคราะห์ X/SD ส่งออก Excel/PDF และบันทึก QA Log ใน workflow เดียว</p>
+          <h1>เว็บประมวลผลแบบประเมินอัตโนมัติ</h1>
+          <p class="lead">ใช้งานด้วยวิธีที่เสถียรที่สุด: วางไฟล์ดิบใน Google Drive แล้วให้ระบบสร้าง Excel/PDF จากคิว</p>
         </div>
         <div class="topbar-actions">
           <button class="ghost" onclick="selfTest()">ทดสอบระบบ</button>
           <button class="ghost" onclick="listFiles()">ตรวจคิว</button>
-          <button class="primary" onclick="openUploadSystem()">วางไฟล์ใน Drive</button>
+          <button class="primary" onclick="openUploadSystem()">เปิดโฟลเดอร์ Drive</button>
         </div>
       </header>
 
       <section id="command" class="hero-grid">
         <article class="hero-card main-hero">
           <div class="hero-content">
-            <span class="system-chip">Live Command Center</span>
-            <h2>RTAFNC Evaluation Analyzer</h2>
-            <p>จัดการไฟล์แบบประเมิน ตั้งแต่ไฟล์ดิบจนถึงรายงานพร้อมตรวจ QA ก่อนใช้ทางราชการ</p>
+            <span class="system-chip">Stable Production Flow</span>
+            <h2>วางไฟล์จริงใน Drive แล้วกด Process</h2>
+            <p>ปิดการอัปโหลดผ่านฟอร์มเดิมแล้ว เพราะเคยเกิดไฟล์ 0 byte ให้ใช้การวางไฟล์ .xlsx/.xls/.csv/.tsv ในโฟลเดอร์ Drive โดยตรง</p>
             <div class="hero-actions">
-              <button class="primary big" onclick="openUploadSystem()">วางไฟล์ใน Drive (อัปโหลด)</button>
-              <button class="danger big" onclick="processFiles()">ประมวลผลคิว</button>
+              <button class="primary big" onclick="openUploadSystem()">1) เปิด Drive เพื่อวางไฟล์</button>
+              <button class="ghost big" onclick="listFiles()">2) ตรวจคิว</button>
+              <button class="ghost big" onclick="peekQueue()">3) Peek ตรวจข้อมูล</button>
+              <button class="danger big" onclick="processFiles()">4) ประมวลผล Excel/PDF</button>
             </div>
           </div>
           <div class="hero-metric">
-            <span>Backend</span>
-            <b>Apps Script</b>
-            <small>Drive API / Sheets / PDF Export</small>
+            <span>Ship Gate</span>
+            <b>SUCCESS</b>
+            <small>ต้องมี outputSpreadsheetUrl + pdfUrls</small>
           </div>
         </article>
 
         <article class="metric-card">
-          <span class="metric-label">รองรับไฟล์</span>
+          <span class="metric-label">Input</span>
           <strong>.xlsx .xls .csv .tsv</strong>
-          <p>รับข้อมูลดิบจากแบบประเมิน</p>
+          <p>ไฟล์ต้องไม่ใช่ 0 byte</p>
         </article>
         <article class="metric-card">
           <span class="metric-label">Output</span>
           <strong>Excel + PDF</strong>
-          <p>Dashboard, ScoreRows, QA_Log</p>
+          <p>Dashboard, Item_Dictionary, QA_Log</p>
         </article>
         <article class="metric-card">
           <span class="metric-label">QA</span>
-          <strong>X / SD / 1–5</strong>
-          <p>ตรวจคะแนนและหมวดงาน</p>
+          <strong>v6 Source-driven</strong>
+          <p>ไม่เดาแยกชั้นปี</p>
         </article>
       </section>
 
@@ -91,99 +91,38 @@
           </div>
           <span class="pill" id="connectionPill">Checking</span>
         </div>
-        <p class="muted">หน้านี้เรียก backend อัตโนมัติผ่าน API แล้ว — <b>ไม่ต้องเปิด script.google.com เอง</b>. วิธีใช้: (1) วางไฟล์ดิบในโฟลเดอร์ Drive <b>00_วางไฟล์ที่นี่</b> ด้วยแอป Google Drive (2) มาที่หัวข้อ “สร้างรายงาน” แล้วกด “จากคิว Drive”. หากเปิดลิงก์ script.google.com ตรง ๆ แล้วขึ้น “ไม่สามารถเปิดไฟล์ได้” ให้เปิดใน <b>โหมดไม่ระบุตัวตน (Incognito)</b> หรือออกจากบัญชี Google ที่ล็อกอินหลายบัญชี</p>
+        <p class="muted">หน้านี้เรียก backend ผ่าน JSONP โดยตรง วิธีใช้จริงคือวางไฟล์ในโฟลเดอร์ <b>00_วางไฟล์ที่นี่</b> แล้วกด ตรวจคิว → Peek → ประมวลผลคิว</p>
         <div class="url-row">
           <input id="gasUrl" placeholder="https://script.google.com/macros/s/xxxxx/exec" />
           <button onclick="saveBackendUrl()">บันทึก</button>
           <button class="secondary" onclick="resetBackendUrl()">ค่าเริ่มต้น</button>
         </div>
         <div class="action-strip">
-          <button onclick="openUploadSystem()">เปิดโฟลเดอร์ Drive (วางไฟล์)</button>
-          <button onclick="listFiles()">ตรวจไฟล์รอคิว</button>
-          <button class="danger" onclick="processFiles()">ประมวลผลคิว</button>
-          <button class="ghost" onclick="openAppsScriptPage()">หน้าอัปโหลด Apps Script (สำรอง)</button>
+          <button onclick="healthCheck()">Health v6</button>
+          <button onclick="selfTest()">Selftest v6</button>
+          <button onclick="openUploadSystem()">เปิดโฟลเดอร์ Drive</button>
+          <button onclick="listFiles()">ตรวจคิว</button>
+          <button onclick="peekQueue()">Peek</button>
+          <button class="danger" onclick="processFiles()">Process queue</button>
         </div>
         <div id="backendStatus" class="status">กำลังตรวจสถานะ Backend...</div>
-      </section>
-
-      <section id="golden" class="panel">
-        <div class="panel-header">
-          <div>
-            <p class="eyebrow dark">Golden Report Generator</p>
-            <h2>สร้างรายงานสำเร็จรูป (Excel + PDF) พร้อมดาวน์โหลด</h2>
-          </div>
-          <span class="pill green" id="goldenPill">พร้อม</span>
-        </div>
-        <p class="muted">วิธีใช้ที่ <b>ไม่ต้องเปิด script.google.com</b> (เลี่ยง error ล็อกอิน Google): (1) วางไฟล์ดิบในโฟลเดอร์ Drive <b>00_วางไฟล์ที่นี่</b> ด้วยแอป Google Drive → (2) กดปุ่มเขียวด้านล่าง ระบบตรวจประเภทให้เอง → (3) ดาวน์โหลด Excel/PDF ในหน้านี้เลย</p>
-        <div class="golden-hero">
-          <button class="primary big" onclick="runGolden('goldenauto','อัตโนมัติจากคิว Drive')">⚡ สร้างรายงานอัตโนมัติจากไฟล์ในคิว (ตรวจประเภทให้เอง)</button>
-          <button class="ghost" onclick="openUploadSystem()">เปิดโฟลเดอร์ Drive เพื่อวางไฟล์</button>
-        </div>
-        <p class="muted" style="margin-top:14px">หรือเลือกประเภทเอง — <b>ทดลอง</b> = ข้อมูลตัวอย่างในระบบ, <b>จากคิว Drive</b> = ไฟล์จริงในคิว</p>
-        <div class="golden-grid">
-          <article class="golden-card">
-            <h3>1) กิจกรรม / ชมรม</h3>
-            <p>ตาราง ข้อความ • X • SD • ระดับ</p>
-            <div class="golden-actions">
-              <button onclick="runGolden('goldenexportdemo','ประเภท 1 (ทดลอง)')">ทดลอง</button>
-              <button class="secondary" onclick="runGolden('goldenexport','ประเภท 1 (จากคิว)')">จากคิว Drive</button>
-            </div>
-          </article>
-          <article class="golden-card">
-            <h3>2) ผู้สอนรายวิชา</h3>
-            <p>จับคู่ตามชื่ออาจารย์ • รายผู้สอน</p>
-            <div class="golden-actions">
-              <button onclick="runGolden('goldentype2demo','ประเภท 2 (ทดลอง)')">ทดลอง</button>
-              <button class="secondary" onclick="runGolden('goldentype2','ประเภท 2 (จากคิว)')">จากคิว Drive</button>
-            </div>
-          </article>
-          <article class="golden-card">
-            <h3>3) อัตลักษณ์ งาม/สง่า</h3>
-            <p>ตารางหลายมิติ • ภาพรวม+รายชั้นปี</p>
-            <div class="golden-actions">
-              <button onclick="runGolden('goldentype3demo','ประเภท 3 (ทดลอง)')">ทดลอง</button>
-              <button class="secondary" onclick="runGolden('goldentype3','ประเภท 3 (จากคิว)')">จากคิว Drive</button>
-            </div>
-          </article>
-        </div>
-        <div id="goldenStatus" class="status">ยังไม่ได้สร้างรายงาน</div>
-        <div id="goldenDownloads" class="golden-downloads"></div>
-        <div class="table-wrap" id="goldenResult"></div>
-      </section>
-
-      <section id="folders" class="folder-section">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow dark">Google Drive Workflow</p>
-            <h2>โครงสร้างแฟ้มงานมาตรฐาน</h2>
-          </div>
-          <button class="ghost navy" onclick="listFiles()">Refresh Queue</button>
-        </div>
-        <div class="folder-grid">
-          <article class="folder-card intake"><span>01</span><h3>รับไฟล์ข้อมูลดิบ</h3><p>00_วางไฟล์ที่นี่</p><b>Pending Queue</b></article>
-          <article class="folder-card done"><span>02</span><h3>ประมวลผลแล้ว</h3><p>01_ประมวลผลแล้ว</p><b>Processed Source</b></article>
-          <article class="folder-card review"><span>03</span><h3>ไม่ทราบประเภท</h3><p>99_ไม่ทราบประเภท</p><b>Needs Review</b></article>
-          <article class="folder-card output"><span>04</span><h3>ตารางคำนวณ</h3><p>03_สรุปผลและตารางคำนวณ</p><b>Sheet / Excel</b></article>
-          <article class="folder-card pdf"><span>05</span><h3>รายงาน PDF</h3><p>04_รายงานส่งออก_PDF</p><b>Print Report</b></article>
-          <article class="folder-card qa"><span>06</span><h3>QA และ Log</h3><p>Process Log + QA_Log</p><b>Audit Trail</b></article>
-        </div>
       </section>
 
       <section id="workflow" class="panel">
         <div class="panel-header">
           <div>
             <p class="eyebrow dark">Standard Workflow</p>
-            <h2>ขั้นตอนประมวลผลตาม Skill Logic</h2>
+            <h2>ขั้นตอนประมวลผลที่ใช้จริง</h2>
           </div>
           <span class="pill green">Ready</span>
         </div>
         <div class="timeline">
-          <div><i>1</i><b>Upload</b><span>นำเข้าไฟล์แบบประเมิน</span></div>
-          <div><i>2</i><b>Store</b><span>บันทึกใน Google Drive</span></div>
-          <div><i>3</i><b>Convert</b><span>แปลงเป็น Google Sheets</span></div>
-          <div><i>4</i><b>Analyze</b><span>ตรวจหมวด / คะแนน / X / SD</span></div>
-          <div><i>5</i><b>Export</b><span>สร้าง Excel/Sheet และ PDF</span></div>
-          <div><i>6</i><b>QA</b><span>ตรวจ Log ก่อนใช้งานจริง</span></div>
+          <div><i>1</i><b>Drive</b><span>วางไฟล์ดิบจริงใน 00_วางไฟล์ที่นี่</span></div>
+          <div><i>2</i><b>List</b><span>ตรวจว่าขนาดไฟล์มากกว่า 0 byte</span></div>
+          <div><i>3</i><b>Peek</b><span>ตรวจจำนวนข้อและผู้ตอบ</span></div>
+          <div><i>4</i><b>Process</b><span>สร้าง Excel/Sheet และ PDF</span></div>
+          <div><i>5</i><b>QA</b><span>ดู QA_Log ก่อนใช้ทางราชการ</span></div>
+          <div><i>6</i><b>Ship</b><span>เปิดลิงก์ outputSpreadsheetUrl/pdfUrls</span></div>
         </div>
       </section>
 
@@ -191,21 +130,21 @@
         <div class="panel-header">
           <div>
             <p class="eyebrow dark">Live Operation</p>
-            <h2>ผลการทำงานและสถานะล่าสุด</h2>
+            <h2>ผลการทำงานและลิงก์ Excel/PDF</h2>
           </div>
           <span class="pill" id="lastRunPill">Standby</span>
         </div>
         <div id="runStatus" class="status">พร้อมใช้งาน</div>
         <div class="table-wrap" id="resultTable"></div>
-        <details class="debug-box">
+        <details class="debug-box" open>
           <summary>Raw backend response</summary>
           <pre id="rawOutput"></pre>
         </details>
       </section>
 
       <footer>
-        <span>RTAFNC Evaluation Analyzer</span>
-        <b>Professional Google Drive Workflow</b>
+        <span>RTAFNC Assessment Web App</span>
+        <b>อ่านก่อน → คิดก่อน → แก้ทีละส่วน → ตรวจสอบเสมอ</b>
       </footer>
     </main>
   </div>
