@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Template Copy Test</title>
+<style>
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;background:#f3f6fb;color:#172033}.wrap{max-width:980px;margin:0 auto;padding:28px}.hero{background:linear-gradient(135deg,#0b3158,#1d63d4);color:white;border-radius:22px;padding:28px}.card{background:white;border:1px solid #dde6f3;border-radius:16px;padding:18px;margin-top:18px;box-shadow:0 8px 22px rgba(30,55,90,.07)}label{font-weight:800;display:block;margin-top:12px}input{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px}button{border:0;background:#1d63d4;color:white;border-radius:12px;padding:12px 16px;font-weight:900;cursor:pointer;margin-top:14px}.secondary{background:#64748b}.ok{color:#16a34a;font-weight:900}.warn{color:#d97706;font-weight:900}pre{background:#081225;color:#dbeafe;border-radius:14px;padding:14px;overflow:auto;min-height:160px}.links a{display:inline-block;margin:6px 8px 0 0;padding:9px 12px;border-radius:999px;background:#eaf2ff;color:#174b91;text-decoration:none;font-weight:800}.rule{background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:12px;margin-top:12px}
+</style>
+</head>
+<body><div class="wrap">
+<div class="hero"><h1>Template Copy Test</h1><p>ใช้ Excel ตัวอย่างจาก Google Drive เป็นแม่แบบจริง: copy template → เขียนข้อมูลดิบ → ส่งออก Excel/PDF</p></div>
+<div class="card">
+<h2>คู่ทดสอบแรก</h2>
+<div class="rule"><b>กติกา:</b> ห้ามสร้าง layout ใหม่เอง ต้องคัดลอก Template Excel ก่อน และต้องตรวจหน้าตาด้วยตาอีกครั้งหลังรัน</div>
+<label>Apps Script Backend URL</label><input id="backend" value="https://script.google.com/macros/s/AKfycbz3Uq3oJtOu95URz2HfcgdPnoRYPdaJfFoRi1Eh9-9sRkTx-_iEODKFNN903N0BcVQq/exec">
+<label>Raw File ID: น.ท.พชร รัตนวงศ์.xlsx</label><input id="raw" value="19cj4O4TOTo7gFy51iar2jlcCCB8Yibn6">
+<label>Template Excel ID: ผู้สอนรายบุคคล วิชาการฝึกทหาร 2 ปีการศึกษา 2566.xlsx</label><input id="tpl" value="19M5ktquM7t0mH_iN3QN-TdaRqzlncKzU">
+<button onclick="runCopy()">รัน Template Copy v1</button>
+<button class="secondary" onclick="health()">Health v6</button>
+<div id="status" style="margin-top:12px">พร้อมทดสอบ</div>
+<div class="links" id="links"></div>
+</div>
+<div class="card"><h2>Raw response</h2><pre id="out"></pre></div>
+</div>
+<script>
+function jsonp(action, params={}){const cb='cb_'+Math.random().toString(36).slice(2);const q=new URLSearchParams({action,callback:cb,...params});const url=document.getElementById('backend').value.trim()+'?'+q.toString();return new Promise((resolve,reject)=>{const s=document.createElement('script');const t=setTimeout(()=>{cleanup();reject(new Error('timeout'))},180000);function cleanup(){clearTimeout(t);delete window[cb];s.remove()}window[cb]=d=>{cleanup();resolve(d)};s.onerror=()=>{cleanup();reject(new Error('โหลด backend ไม่สำเร็จ'))};s.src=url;document.body.appendChild(s)})}
+function print(x){out.textContent=JSON.stringify(x,null,2)}
+async function health(){status.innerHTML='กำลังตรวจ health...';try{const d=await jsonp('healthv6');print(d);status.innerHTML=d.version?'<span class="ok">Backend: '+d.version+'</span>':'<span class="warn">ตอบกลับแต่ไม่พบ version</span>'}catch(e){status.innerHTML='<span class="warn">ERROR: '+e.message+'</span>';print({error:String(e)})}}
+async function runCopy(){links.innerHTML='';status.innerHTML='กำลัง copy template และเขียนข้อมูล...';try{const d=await jsonp('templatecopyv1',{rawFileId:raw.value.trim(),templateFileId:tpl.value.trim()});print(d);if(d.ok&&d.status==='SUCCESS'){status.innerHTML='<span class="ok">SUCCESS แต่ต้องตรวจ visual match กับ template จริง</span>';let html='';if(d.outputSpreadsheetUrl)html+='<a target="_blank" href="'+d.outputSpreadsheetUrl+'">เปิด Excel/Sheet ที่สร้าง</a>';if(d.pdfUrl)html+='<a target="_blank" href="'+d.pdfUrl+'">เปิด PDF</a>';links.innerHTML=html}else{status.innerHTML='<span class="warn">REVIEW / ไม่สำเร็จ</span>'}}catch(e){status.innerHTML='<span class="warn">ERROR: '+e.message+'</span>';print({error:String(e)})}}
+</script>
+</body></html>
