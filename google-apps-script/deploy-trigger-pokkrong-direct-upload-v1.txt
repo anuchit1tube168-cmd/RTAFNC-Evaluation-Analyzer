@@ -1,0 +1,3 @@
+trigger deploy for Pokkrong Direct Upload v1
+commit: a4e3b951be650a2b4c7cde0c13c37628aa3f81c6
+purpose: Apps Script root opens Claude-derived direct upload page and creates Sheet/PDF outputs
