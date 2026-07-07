@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RTAFNC v6 Runtime Test</title>
+<style>
+  body{margin:0;font-family:Tahoma,Arial,sans-serif;background:#f6f1e8;color:#102033}main{max-width:980px;margin:auto;padding:24px}.card{background:#fff;border:1px solid #e7dbc9;border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 10px 24px rgba(30,20,5,.08)}h1{margin:0;font-size:32px}.muted{color:#667085}.row{display:flex;flex-wrap:wrap;gap:10px}.btn{border:0;border-radius:12px;padding:12px 14px;background:#0f2a4a;color:#fff;font-weight:700;cursor:pointer}.btn.ok{background:#08745f}.btn.warn{background:#b45309}.btn.bad{background:#991b1b}.pill{display:inline-block;border-radius:999px;background:#eee;padding:6px 10px;font-weight:700}.pass{color:#08745f}.review{color:#b45309}.fail{color:#991b1b}pre{background:#111827;color:#d1fae5;border-radius:14px;padding:14px;white-space:pre-wrap;overflow:auto;min-height:220px}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #eee;padding:8px;text-align:left}.gate{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.gate div{background:#fff8ed;border:1px solid #eadbc0;border-radius:12px;padding:12px}@media(max-width:700px){.gate{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+  <section class="card">
+    <span class="pill">Plan → Build → Review → Ship</span>
+    <h1>RTAFNC Evaluation Analyzer v6 Runtime Test</h1>
+    <p class="muted">อ่านก่อน → คิดก่อน → แก้ทีละส่วน → ตรวจสอบเสมอ</p>
+    <p>หน้านี้ใช้ทดสอบ Apps Script จริงตามลำดับ ห้ามกด Process ถ้า Health / Selftest / Peek ยังไม่ผ่าน</p>
+  </section>
+  <section class="card">
+    <h2>1) Runtime Controls</h2>
+    <div class="row">
+      <button class="btn" onclick="callAction('healthv6')">Health v6</button>
+      <button class="btn" onclick="callAction('selftestv6')">Selftest v6</button>
+      <button class="btn" onclick="callAction('peek')">Peek raw file</button>
+      <button class="btn ok" onclick="callAction('list')">List queue</button>
+      <button class="btn warn" onclick="confirmProcess()">Process queue</button>
+      <button class="btn bad" onclick="clearOut()">Clear</button>
+    </div>
+  </section>
+  <section class="card">
+    <h2>2) Gate Status</h2>
+    <div class="gate">
+      <div>Health<br><b id="g-health" class="review">WAIT</b></div>
+      <div>Selftest<br><b id="g-selftest" class="review">WAIT</b></div>
+      <div>Peek<br><b id="g-peek" class="review">WAIT</b></div>
+      <div>Process<br><b id="g-process" class="review">WAIT</b></div>
+    </div>
+  </section>
+  <section class="card">
+    <h2>3) Result</h2>
+    <div id="summary"></div>
+    <pre id="out">พร้อมทดสอบ</pre>
+  </section>
+  <section class="card">
+    <h2>Ship Gate</h2>
+    <table>
+      <tr><th>Gate</th><th>ผ่านเมื่อ</th></tr>
+      <tr><td>Health</td><td>version = v6-source-driven-reports</td></tr>
+      <tr><td>Selftest</td><td>allPass = true</td></tr>
+      <tr><td>Peek</td><td>itemCount &gt; 0 และ respondentCount &gt; 0</td></tr>
+      <tr><td>Process</td><td>status = SUCCESS พร้อม sheetUrl/pdfUrl</td></tr>
+    </table>
+  </section>
+</main>
+<script>
+const API='https://script.google.com/macros/s/AKfycbz3Uq3oJtOu95URz2HfcgdPnoRYPdaJfFoRi1Eh9-9sRkTx-_iEODKFNN903N0BcVQq/exec';
+function setGate(id,state,text){const el=document.getElementById(id);el.textContent=text||state.toUpperCase();el.className=state;}
+function clearOut(){document.getElementById('out').textContent='พร้อมทดสอบ';document.getElementById('summary').innerHTML='';}
+function confirmProcess(){if(confirm('ยืนยัน process ไฟล์ในคิว Drive? ควรผ่าน Health/Selftest/Peek ก่อน')) callAction('process');}
+function jsonp(action){return new Promise((resolve,reject)=>{const cb='rtafnc_'+Date.now()+'_'+Math.random().toString(36).slice(2);const s=document.createElement('script');const timer=setTimeout(()=>{cleanup();reject(new Error('timeout'));},120000);function cleanup(){clearTimeout(timer);delete window[cb];s.remove();}window[cb]=d=>{cleanup();resolve(d)};s.onerror=()=>{cleanup();reject(new Error('โหลด Apps Script ไม่สำเร็จ'))};s.src=API+'?action='+encodeURIComponent(action)+'&callback='+encodeURIComponent(cb);document.body.appendChild(s);});}
+async function callAction(action){const out=document.getElementById('out');out.textContent='กำลังเรียก '+action+' ...';try{const data=await jsonp(action);out.textContent=JSON.stringify(data,null,2);evaluate(action,data);renderSummary(action,data);}catch(e){out.textContent=JSON.stringify({action,error:String(e)},null,2);}}
+function evaluate(action,data){if(action==='healthv6'){setGate('g-health',data&&data.version==='v6-source-driven-reports'?'pass':'fail');}if(action==='selftestv6'){setGate('g-selftest',data&&data.allPass===true?'pass':'fail');}if(action==='peek'){const b=(data&&data.best)||data||{};setGate('g-peek',Number(b.itemCount||0)>0&&Number(b.respondentCount||0)>0?'pass':'review');}if(action==='process'){const r=(data&&data.results)||[];const ok=r.some(x=>x.status==='SUCCESS'&&(x.sheetUrl||x.outputSpreadsheetUrl)&&(x.pdfUrl||(Array.isArray(x.pdfUrls)&&x.pdfUrls.length)));setGate('g-process',ok?'pass':'review');}}
+function renderSummary(action,data){const box=document.getElementById('summary');if(action==='peek'){const b=(data&&data.best)||data||{};box.innerHTML='<p><b>Peek:</b> '+(b.itemCount||0)+' ข้อ / '+(b.respondentCount||0)+' ผู้ตอบ</p>';return;}if(action==='process'){const r=(data&&data.results)||[];box.innerHTML='<p><b>Process:</b> '+r.length+' รายการ</p>';return;}box.innerHTML='<p><b>'+action+'</b> executed</p>';}
+</script>
+</body>
+</html>
