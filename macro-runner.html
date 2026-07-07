@@ -1,63 +1,26 @@
 <!doctype html>
 <html lang="th">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>RTAFNC Macro Template Runner</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RTAFNC Auto Macro Runner</title>
 <style>
-:root{--nav:#0b3158;--blue:#1d63d4;--bg:#f3f6fb;--card:#fff;--line:#dbe5f3;--text:#1f2937;--muted:#64748b;--ok:#16a34a;--warn:#d97706;--bad:#dc2626}*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;color:var(--text)}.wrap{max-width:1180px;margin:0 auto;padding:24px}.hero{background:linear-gradient(135deg,#0b3158,#1d63d4);color:#fff;border-radius:22px;padding:26px;box-shadow:0 18px 40px rgba(9,40,88,.25)}h1{margin:0 0 8px;font-size:32px}.hero p{margin:0;color:#dbeafe}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 10px 28px rgba(30,55,90,.07)}label{display:block;font-weight:800;margin:12px 0 6px}input,textarea{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:12px;font-size:15px}textarea{min-height:80px}.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.btn{border:0;border-radius:12px;background:var(--blue);color:white;font-weight:900;padding:12px 16px;cursor:pointer}.btn.sec{background:white;color:#334155;border:1px solid #cbd5e1}.btn.ok{background:var(--ok)}.status{padding:14px;border-radius:14px;background:#eff6ff;border:1px solid #bfdbfe;margin-top:14px}.status.ok{background:#ecfdf5;border-color:#86efac}.status.warn{background:#fffbeb;border-color:#fcd34d}.status.bad{background:#fef2f2;border-color:#fecaca}.pill{display:inline-block;border-radius:999px;padding:5px 10px;background:#dbeafe;color:#174b91;font-weight:800}.result a{display:inline-block;margin:6px 8px 6px 0}.pre{background:#0f172a;color:#e2e8f0;border-radius:14px;padding:14px;overflow:auto;max-height:360px}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}.step{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;text-align:center}.step b{display:block}.step i{display:inline-grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#eaf2ff;color:#1d63d4;font-style:normal;font-weight:900;margin-bottom:8px}@media(max-width:850px){.grid,.steps{grid-template-columns:1fr}}
+:root{--nav:#0b3158;--blue:#1d63d4;--bg:#f3f6fb;--card:#fff;--line:#dbe5f3;--text:#1f2937;--ok:#16a34a;--warn:#d97706;--bad:#dc2626}*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;color:var(--text)}.wrap{max-width:1180px;margin:0 auto;padding:24px}.hero{background:linear-gradient(135deg,#0b3158,#1d63d4);color:#fff;border-radius:22px;padding:26px;box-shadow:0 18px 40px rgba(9,40,88,.25)}h1{margin:0 0 8px;font-size:32px}.hero p{margin:0;color:#dbeafe}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 10px 28px rgba(30,55,90,.07)}label{display:block;font-weight:800;margin:12px 0 6px}input,textarea,select{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:12px;font-size:15px}textarea{min-height:80px}.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.btn{border:0;border-radius:12px;background:var(--blue);color:white;font-weight:900;padding:12px 16px;cursor:pointer;text-decoration:none;display:inline-block}.btn.sec{background:white;color:#334155;border:1px solid #cbd5e1}.btn.ok{background:var(--ok)}.status{padding:14px;border-radius:14px;background:#eff6ff;border:1px solid #bfdbfe;margin-top:14px}.status.ok{background:#ecfdf5;border-color:#86efac}.status.warn{background:#fffbeb;border-color:#fcd34d}.status.bad{background:#fef2f2;border-color:#fecaca}.pill{display:inline-block;border-radius:999px;padding:5px 10px;background:#dbeafe;color:#174b91;font-weight:800}.result a{display:inline-block;margin:6px 8px 6px 0}.pre{background:#0f172a;color:#e2e8f0;border-radius:14px;padding:14px;overflow:auto;max-height:360px}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}.step{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;text-align:center}.step b{display:block}.step i{display:inline-grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#eaf2ff;color:#1d63d4;font-style:normal;font-weight:900;margin-bottom:8px}@media(max-width:850px){.grid,.steps{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <section class="hero">
-    <h1>Macro Template Runner</h1>
-    <p>ข้อมูลดิบเข้า → copy Excel Template จริง → เขียนค่า X/SD ลงช่องเดิม → ได้ Excel/PDF ที่หน้าตาเหมือนตัวอย่าง</p>
-  </section>
-  <div class="steps">
-    <div class="step"><i>1</i><b>Raw</b><span>ไฟล์ข้อมูลดิบ</span></div>
-    <div class="step"><i>2</i><b>Template</b><span>Excel ตัวอย่าง</span></div>
-    <div class="step"><i>3</i><b>Macro</b><span>เขียนค่าใน layout เดิม</span></div>
-    <div class="step"><i>4</i><b>Export</b><span>Excel/PDF</span></div>
-  </div>
-  <div class="grid">
-    <div class="card">
-      <h2>ตั้งค่า Macro</h2>
-      <label>Apps Script Web App URL</label>
-      <input id="backend" value="https://script.google.com/macros/s/AKfycbz3Uq3oJtOu95URz2HfcgdPnoRYPdaJfFoRi1Eh9-9sRkTx-_iEODKFNN903N0BcVQq/exec">
-      <label>Raw File ID หรือ Drive URL</label>
-      <textarea id="rawId">19cj4O4TOTo7gFy51iar2jlcCCB8Yibn6</textarea>
-      <label>Template Excel File ID หรือ Drive URL</label>
-      <textarea id="templateId">19M5ktquM7t0mH_iN3QN-TdaRqzlncKzU</textarea>
-      <label>ชื่อผู้สอน / ชื่อรายงาน</label>
-      <input id="instructor" value="น.ท.พชร รัตนวงศ์">
-      <div class="btns">
-        <button class="btn ok" onclick="runMacro()">สร้างรายงานจาก Template</button>
-        <button class="btn sec" onclick="fillDemo()">ใส่ค่าทดสอบ</button>
-        <button class="btn sec" onclick="clearResult()">ล้างผล</button>
-      </div>
-      <div id="status" class="status">พร้อมใช้งาน: ใช้ File ID หรือวางลิงก์ Google Drive เต็มก็ได้</div>
-    </div>
-    <div class="card result">
-      <h2>ผลลัพธ์</h2>
-      <p><span class="pill" id="pill">Standby</span></p>
-      <div id="links"></div>
-      <h3>JSON Response</h3>
-      <pre id="raw" class="pre">ยังไม่มีผลลัพธ์</pre>
-    </div>
-  </div>
-  <div class="card" style="margin-top:18px">
-    <h2>กติกาไม่ให้ผิดแบบ</h2>
-    <p><b>Template = Excel ตัวอย่างผลลัพธ์ที่ถูกต้อง</b> ระบบต้อง copy template ก่อนเสมอ แล้วเขียนเฉพาะข้อมูล/ค่า X/SD ลงในตำแหน่งที่พบใน template เดิม ห้ามสร้าง layout ใหม่เอง</p>
-  </div>
+<section class="hero"><h1>Auto Macro Runner</h1><p>อัปโหลด/ใส่ Raw → ใส่บริบทวิชาเมื่อจำเป็น → ระบบเลือก Template Excel ปี 2566-2567 เอง → Excel/PDF ตามตัวอย่าง</p></section>
+<div class="steps"><div class="step"><i>1</i><b>Raw</b><span>ไฟล์ข้อมูลดิบ</span></div><div class="step"><i>2</i><b>Context</b><span>วิชา/ชั้นปี ถ้าไฟล์ไม่บอก</span></div><div class="step"><i>3</i><b>Auto Template</b><span>ค้น Drive 2566-2567</span></div><div class="step"><i>4</i><b>Export</b><span>Excel/PDF</span></div></div>
+<div class="grid"><div class="card"><h2>แปลผลจากไฟล์ดิบ</h2><label>Apps Script Web App URL</label><input id="backend" value="https://script.google.com/macros/s/AKfycbz3Uq3oJtOu95URz2HfcgdPnoRYPdaJfFoRi1Eh9-9sRkTx-_iEODKFNN903N0BcVQq/exec"><label>Raw File ID หรือ Drive URL</label><textarea id="rawId">19cj4O4TOTo7gFy51iar2jlcCCB8Yibn6</textarea><label>บริบทวิชา / course</label><select id="course"><option value="">ไม่ระบุ — ถ้าไม่ชัดให้ REVIEW</option><option selected>ฝึกทหาร 2</option><option>ฝึกทหาร 1</option><option>ฝึกทหาร 3</option><option>ฝึกทหาร 4</option><option>นภาภิบาล</option><option>ประเมินรายวิชา</option></select><label>ชื่อผู้สอน / ชื่อรายงาน</label><input id="instructor" value="น.ท.พชร รัตนวงศ์"><div class="btns"><button class="btn ok" onclick="runAuto()">แปลผลอัตโนมัติจาก Raw</button><button class="btn sec" onclick="fillDemo()">ใส่ค่าทดสอบที่ผ่านแล้ว</button><button class="btn sec" onclick="clearResult()">ล้างผล</button></div><div id="status" class="status">พร้อมใช้งาน: ส่ง raw อย่างเดียวได้ ถ้าไฟล์ไม่มีบริบท ให้เลือก course เพื่อกันเลือก template ผิด</div></div>
+<div class="card result"><h2>ผลลัพธ์</h2><p><span class="pill" id="pill">Standby</span></p><div id="links"></div><h3>JSON Response</h3><pre id="raw" class="pre">ยังไม่มีผลลัพธ์</pre></div></div>
+<div class="card" style="margin-top:18px"><h2>กติกาไม่ให้ผิดแบบ</h2><p><b>Template = Excel ตัวอย่างผลลัพธ์ที่ถูกต้องใน Google Drive ปี 2566-2567</b><br>ระบบต้องค้นและ copy template ก่อนเสมอ ถ้า raw ไม่มีวิชา/ชั้นปี และพบหลาย template ใกล้กัน ต้อง REVIEW ไม่เดาเอง</p></div>
 </div>
 <script>
 function setStatus(text,mode){const el=document.getElementById('status');el.textContent=text;el.className='status '+(mode||'')}
 function setPill(text,ok){const el=document.getElementById('pill');el.textContent=text;el.style.background=ok?'#dcfce7':'#dbeafe';el.style.color=ok?'#166534':'#174b91'}
-function jsonp(url,params){const cb='rtafnc_macro_'+Math.random().toString(36).slice(2);params.callback=cb;const q=new URLSearchParams(params);return new Promise((resolve,reject)=>{const s=document.createElement('script');const t=setTimeout(()=>{cleanup();reject(new Error('timeout'))},180000);function cleanup(){clearTimeout(t);delete window[cb];s.remove()}window[cb]=d=>{cleanup();resolve(d)};s.onerror=()=>{cleanup();reject(new Error('โหลด backend ไม่สำเร็จ'))};s.src=url+'?'+q.toString();document.body.appendChild(s)})}
-async function runMacro(){try{setStatus('กำลังรัน macro: copy template → อ่าน raw → เขียนค่า → export PDF','warn');setPill('Processing',false);document.getElementById('links').innerHTML='';const data=await jsonp(document.getElementById('backend').value.trim(),{action:'macrotemplatev1',rawId:document.getElementById('rawId').value.trim(),templateId:document.getElementById('templateId').value.trim(),instructor:document.getElementById('instructor').value.trim()});document.getElementById('raw').textContent=JSON.stringify(data,null,2);if(data.ok&&data.status==='SUCCESS'){setStatus('SUCCESS: สร้างรายงานจาก Excel Template แล้ว','ok');setPill('SUCCESS',true);document.getElementById('links').innerHTML=`<a class="btn" href="${data.outputSpreadsheetUrl}" target="_blank">เปิด Excel/Sheet</a><a class="btn sec" href="${data.pdfUrl}" target="_blank">เปิด PDF</a><p>เขียนแถว: ${data.written&&data.written.rowsWritten||0} / ข้อทั้งหมด: ${data.items||0} / ผู้ตอบ: ${data.respondents||0}</p>`}else{setStatus('REVIEW: '+(data.error||'ไม่สำเร็จ'), 'bad');setPill('REVIEW',false)}}catch(e){document.getElementById('raw').textContent=String(e&&e.stack?e.stack:e);setStatus('ERROR: '+e.message,'bad');setPill('ERROR',false)}}
-function fillDemo(){document.getElementById('rawId').value='19cj4O4TOTo7gFy51iar2jlcCCB8Yibn6';document.getElementById('templateId').value='19M5ktquM7t0mH_iN3QN-TdaRqzlncKzU';document.getElementById('instructor').value='น.ท.พชร รัตนวงศ์'}
-function clearResult(){document.getElementById('links').innerHTML='';document.getElementById('raw').textContent='ยังไม่มีผลลัพธ์';setStatus('พร้อมใช้งาน','');setPill('Standby',false)}
+function jsonp(url,params){const cb='rtafnc_auto_'+Math.random().toString(36).slice(2);params.callback=cb;const q=new URLSearchParams(params);return new Promise((resolve,reject)=>{const s=document.createElement('script');const t=setTimeout(()=>{cleanup();reject(new Error('timeout'))},180000);function cleanup(){clearTimeout(t);delete window[cb];s.remove()}window[cb]=d=>{cleanup();resolve(d)};s.onerror=()=>{cleanup();reject(new Error('โหลด backend ไม่สำเร็จ'))};s.src=url+'?'+q.toString();document.body.appendChild(s)})}
+async function runAuto(){try{setStatus('กำลังแปลผล: อ่าน raw → เลือก template 2566-2567 → copy template → export','warn');setPill('Processing',false);links.innerHTML='';const data=await jsonp(backend.value.trim(),{action:'automacrofromrawv1',rawId:rawId.value.trim(),course:course.value.trim(),instructor:instructor.value.trim()});raw.textContent=JSON.stringify(data,null,2);if(data.ok&&data.status==='SUCCESS'){setStatus('SUCCESS: แปลผลตาม template อัตโนมัติแล้ว','ok');setPill('SUCCESS',true);links.innerHTML=`<a class="btn" href="${data.outputSpreadsheetUrl}" target="_blank">เปิด Excel/Sheet</a><a class="btn sec" href="${data.pdfUrl}" target="_blank">เปิด PDF</a><p>Template: ${data.templateFile||'-'}<br>Context: ${data.context||course.value||'-'}<br>เขียนแถว: ${data.written&&data.written.rowsWritten||0} / ข้อทั้งหมด: ${data.items||0} / ผู้ตอบ: ${data.respondents||0}</p>`}else{setStatus('REVIEW: '+(data.error||data.reason||'ไม่สำเร็จ'), 'bad');setPill('REVIEW',false)}}catch(e){raw.textContent=String(e&&e.stack?e.stack:e);setStatus('ERROR: '+e.message,'bad');setPill('ERROR',false)}}
+function fillDemo(){rawId.value='19cj4O4TOTo7gFy51iar2jlcCCB8Yibn6';course.value='ฝึกทหาร 2';instructor.value='น.ท.พชร รัตนวงศ์'}
+function clearResult(){links.innerHTML='';raw.textContent='ยังไม่มีผลลัพธ์';setStatus('พร้อมใช้งาน','');setPill('Standby',false)}
 </script>
-</body>
-</html>
+</body></html>
