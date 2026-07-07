@@ -1,0 +1,3 @@
+trigger deploy for final Claude direct upload page override
+commit: cecbe2d8a2475b3e94ebc79e2caf8ce198d7825c
+purpose: ensure buildUploadPage_ from ZZZ_Claude_Direct_Page_v6.gs is loaded after other upload-page overrides
