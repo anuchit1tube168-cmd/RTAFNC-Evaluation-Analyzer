@@ -27,6 +27,7 @@ jobs:
         run: |
           mkdir -p gas-dist
           cp google-apps-script/*.gs gas-dist/
+          cp google-apps-script/*.html gas-dist/ 2>/dev/null || true
           cp google-apps-script/appsscript.json gas-dist/appsscript.json
 
           # v6 safety: Apps Script file load order can be ambiguous.
