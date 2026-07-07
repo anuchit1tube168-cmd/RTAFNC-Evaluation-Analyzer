@@ -9,6 +9,7 @@ function apiGet_(p) {
     const action = p.action || 'health';
     if (action === 'healthv6') result = getHealthV6_();
     else if (action === 'selftestv6') result = selfTestV6_();
+    else if (action === 'pokkronghealth') result = pokkrongHealth();
     else if (action === 'health') result = getHealth_();
     else if (action === 'list') result = { ok: true, files: listPendingFiles() };
     else if (action === 'process') result = processPendingRawFiles();
@@ -29,4 +30,10 @@ function apiGet_(p) {
     result = { ok: false, action: (p && p.action) || '', error: String(err && err.stack ? err.stack : err) };
   }
   return jsonp_(result, p.callback);
+}
+
+function buildUploadPage_() {
+  return HtmlService.createHtmlOutput(pokkrongDirectUploadHtml_())
+    .setTitle('RTAFNC Direct Upload')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
