@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RTAFNC Direct Upload</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root{--navy:#071b3a;--blue:#1d4ed8;--gold:#d6a94a;--green:#0f766e;--red:#b91c1c;--bg:#eef4ff;--card:#ffffff;--ink:#0f172a;--muted:#64748b;--line:#dbe4f0;--soft:#f8fafc}*{box-sizing:border-box}body{margin:0;font-family:Sarabun,Tahoma,Arial,sans-serif;background:linear-gradient(135deg,#eaf1ff,#f8f1dd);color:var(--ink)}.wrap{max-width:1240px;margin:auto;padding:28px}.top{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;align-items:stretch}.hero,.card{background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:28px;box-shadow:0 18px 45px rgba(7,27,58,.12);padding:24px}.badge{display:inline-flex;gap:8px;align-items:center;background:var(--navy);color:white;border-radius:999px;padding:8px 14px;font-weight:800}h1{font-size:clamp(34px,5vw,58px);line-height:1;margin:16px 0 10px;letter-spacing:-.04em}.lead{font-size:18px;color:var(--muted);max-width:820px}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px}.step{background:var(--soft);border:1px solid var(--line);border-radius:18px;padding:14px}.step b{display:block}.step span{font-size:13px;color:var(--muted)}.drop{margin-top:16px;border:2px dashed #94a3b8;border-radius:24px;padding:38px;text-align:center;background:#f8fbff;cursor:pointer;transition:.2s}.drop:hover,.drop.on{border-color:var(--blue);background:#eff6ff;transform:translateY(-1px)}.dropIcon{font-size:48px}.controls{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}label{font-weight:800;font-size:14px;color:#334155}input,select{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:14px;font-size:16px;background:white}button{border:0;border-radius:14px;padding:12px 16px;font-weight:900;cursor:pointer;background:var(--navy);color:white}button.secondary{background:#e2e8f0;color:#111827}button.green{background:var(--green)}button.red{background:var(--red)}button:disabled{opacity:.45;cursor:not-allowed}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric{background:var(--soft);border:1px solid var(--line);border-radius:18px;padding:14px}.metric small{color:var(--muted)}.metric strong{display:block;font-size:26px;margin-top:6px}.grid{display:grid;grid-template-columns:1fr;gap:18px;margin-top:18px}.hidden{display:none}.status{border-radius:18px;padding:14px;margin-top:14px;background:#f8fafc;border:1px solid var(--line)}.status.ok{background:#ecfdf5;border-color:#99f6e4}.status.warn{background:#fffbeb;border-color:#fde68a}.status.err{background:#fef2f2;border-color:#fecaca}.tags{display:flex;flex-wrap:wrap;gap:8px}.tag{border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;border-radius:999px;padding:6px 10px;font-size:13px;font-weight:800}table{width:100%;border-collapse:collapse;background:white;border-radius:16px;overflow:hidden}th,td{border-bottom:1px solid var(--line);padding:10px;text-align:left;font-size:14px;vertical-align:top}th{background:var(--navy);color:white}.links a{display:inline-flex;margin:6px 8px 6px 0;padding:10px 12px;border-radius:12px;background:#e0f2fe;color:#075985;text-decoration:none;font-weight:900}.mono{white-space:pre-wrap;background:#0f172a;color:#d1fae5;border-radius:16px;padding:14px;overflow:auto}.footer{margin-top:18px;text-align:center;color:var(--muted);font-size:13px}@media(max-width:900px){.top,.steps,.controls,.metrics{grid-template-columns:1fr}.wrap{padding:14px}h1{font-size:38px}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="top">
+      <div class="hero">
+        <span class="badge">RTAFNC • Direct Upload v6</span>
+        <h1>ระบบประเมินแผนกปกครอง</h1>
+        <p class="lead">อ่าน Excel/CSV ใน browser ก่อนส่งข้อมูลแบบ canonical JSON เข้า Apps Script เพื่อสร้าง Google Sheet และ PDF โดยไม่เกิดไฟล์ 0 byte</p>
+        <div class="steps">
+          <div class="step"><b>1. Upload</b><span>ลากไฟล์หรือเลือกไฟล์ดิบ</span></div>
+          <div class="step"><b>2. Detect</b><span>ตรวจชื่อ/คะแนน/ข้อคิดเห็น</span></div>
+          <div class="step"><b>3. Review</b><span>ยืนยันหมวดและหัวรายงาน</span></div>
+          <div class="step"><b>4. Export</b><span>สร้าง Excel/Sheet + PDF</span></div>
+        </div>
+        <div id="drop" class="drop">
+          <div class="dropIcon">📄</div>
+          <h2>คลิกเลือกไฟล์ หรือลากไฟล์มาวาง</h2>
+          <p>รองรับ .xlsx / .xls / .csv</p>
+          <input type="file" id="file" accept=".xlsx,.xls,.csv" hidden>
+        </div>
+      </div>
+      <aside class="card">
+        <h2>สถานะระบบ</h2>
+        <div class="metrics">
+          <div class="metric"><small>ผู้ประเมิน</small><strong id="mN">-</strong></div>
+          <div class="metric"><small>ข้อคำถาม</small><strong id="mQ">-</strong></div>
+          <div class="metric"><small>ข้อคิดเห็น</small><strong id="mC">-</strong></div>
+        </div>
+        <div id="healthBox" class="status warn">กำลังตรวจ Backend...</div>
+        <button class="secondary" onclick="health()">ตรวจ Backend</button>
+      </aside>
+    </section>
+
+    <section id="review" class="grid hidden">
+      <div class="card">
+        <h2>ตั้งค่ารายงานก่อนประมวลผล</h2>
+        <div class="controls">
+          <div><label>หมวดงาน</label><select id="category"><option>อาจารย์ที่ปรึกษา</option><option>ทหาร_1_4</option><option>เจตคติ</option><option>นภาภิบาล</option><option>คุณลักษณะทางทหาร</option><option>จิตอาสา</option><option>SMART_NURSE</option><option>บริการข้อมูล</option></select></div>
+          <div><label>ปีการศึกษา</label><input id="year" value="2568"></div>
+          <div><label>Sheet ที่อ่านได้</label><input id="sheetName" readonly></div>
+        </div>
+        <div style="margin-top:12px"><label>หัวรายงาน</label><input id="title"></div>
+        <h3>คอลัมน์ที่ตรวจพบ</h3><div id="colTags" class="tags"></div>
+        <h3>ตัวอย่างข้อมูล</h3><div style="overflow:auto"><table id="preview"></table></div>
+        <div class="status warn" id="qaBox">รอการตรวจไฟล์</div>
+        <p><button class="green" id="btnSend">สร้าง Excel/PDF</button> <button class="secondary" onclick="location.reload()">เริ่มใหม่</button></p>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <h2>ผลลัพธ์</h2>
+      <div id="result" class="status">พร้อมใช้งาน</div>
+      <div id="links" class="links"></div>
+      <details><summary>Canonical JSON / Debug</summary><pre id="debug" class="mono"></pre></details>
+    </section>
+    <div class="footer">อ่านก่อน → คิดก่อน → แก้ทีละส่วน → ตรวจสอบเสมอ</div>
+  </main>
+<script>
+const $=id=>document.getElementById(id);let payload=null;const drop=$('drop'),file=$('file');drop.onclick=()=>file.click();['dragover','dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.toggle('on',ev==='dragover');if(ev==='drop'&&e.dataTransfer.files[0])readFile(e.dataTransfer.files[0]);}));file.onchange=()=>file.files[0]&&readFile(file.files[0]);
+function readFile(f){$('result').className='status warn';$('result').textContent='กำลังอ่านไฟล์ '+f.name;const rd=new FileReader();rd.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'array'});analyze(wb,f.name)}catch(err){showErr('อ่านไฟล์ไม่ได้: '+err.message)}};rd.readAsArrayBuffer(f)}
+function analyze(wb,fname){let best=null,rows=[],count=0;wb.SheetNames.forEach(n=>{const r=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:null});const c=r.filter(looksDataRow).length;if(c>count){count=c;best=n;rows=r}});if(!best)return showErr('ไม่พบแถวข้อมูลที่มีชื่อและคะแนน 1-5');const data=rows.filter(looksDataRow);const width=Math.max(...data.map(r=>r.length));const roles=[];for(let c=0;c<width;c++){roles.push(classify(data.map(r=>r[c]).filter(v=>v!==null&&v!==''),data.length))}roles.forEach((r,c)=>{if(r==='score'){const vals=data.map(x=>x[c]).filter(v=>typeof v==='number');if(vals.length&&vals.filter(v=>v%1!==0).length/vals.length>.3)roles[c]='derived'}});const scoreCols=roles.map((r,i)=>r==='score'?i:-1).filter(i=>i>=0),nameCol=roles.indexOf('name'),noCol=roles.indexOf('no'),cmCols=roles.map((r,i)=>r==='comment'?i:-1).filter(i=>i>=0);if(!scoreCols.length)return showErr('ไม่พบคอลัมน์คะแนน 1-5');payload={category:$('category').value,year:$('year').value,title:fname.replace(/\.(xlsx|xls|csv)$/i,''),sourceFile:fname,sheet:best,questions:scoreCols.map((c,i)=>headerFor(rows,data,c)||('ข้อ '+(i+1))),students:data.map((r,i)=>({no:noCol>=0?r[noCol]:i+1,name:nameCol>=0?String(r[nameCol]??'').trim():'',scores:scoreCols.map(c=>numScore(r[c])),comment:cmCols.map(c=>r[c]).filter(v=>v&&String(v).trim()&&String(v).trim()!=='-').join(' | ')}))};renderDetect(roles,scoreCols,best)}
+function looksDataRow(r){if(!r||r.length<3)return false;const hasName=r.some(v=>typeof v==='string'&&/นพอ|นาย|นางสาว|น\.ส\./.test(v));const scores=r.filter(v=>typeof v==='number'&&v>=1&&v<=5&&v%1===0).length;return hasName&&scores>=3}function classify(vals,total){if(!vals.length)return'empty';const s=vals.map(String);if(s.every(v=>/@/.test(v)))return'email';if(s.filter(v=>/นพอ|นาย|นางสาว|น\.ส\./.test(v)).length/vals.length>.5)return'name';const nums=vals.filter(v=>typeof v==='number');if(nums.length/vals.length>.8){if(nums.every(v=>v>=1&&v<=5))return'score';if(nums.every((v,i)=>i===0||v>=nums[i-1]))return'no';return'derived'}if(s.filter(v=>v.trim().length>8&&v.trim()!=='-').length)return'comment';return'other'}function headerFor(all,data,col){const first=all.indexOf(data[0]);for(let r=first-1;r>=0&&r>=first-4;r--){const v=all[r]&&all[r][col];if(v!==null&&v!==undefined&&String(v).trim())return String(v).trim()}return null}function numScore(v){const n=Number(v);return n>=1&&n<=5?n:null}
+function renderDetect(roles,scoreCols,sheet){$('review').classList.remove('hidden');$('mN').textContent=payload.students.length;$('mQ').textContent=scoreCols.length;$('mC').textContent=payload.students.filter(s=>s.comment).length;$('sheetName').value=sheet;$('title').value=payload.title;const names={no:'เลขที่',name:'ชื่อ',email:'อีเมล',score:'คะแนน',comment:'ความเห็น',derived:'ค่าเฉลี่ย/SD',other:'อื่นๆ',empty:'ว่าง'};$('colTags').innerHTML=roles.map((r,i)=>'<span class="tag">C'+(i+1)+': '+(names[r]||r)+'</span>').join('');$('preview').innerHTML='<tr><th>เลขที่</th><th>ชื่อ</th>'+payload.questions.map((q,i)=>'<th>ข้อ '+(i+1)+'</th>').join('')+'<th>ข้อคิดเห็น</th></tr>'+payload.students.slice(0,6).map(s=>'<tr><td>'+esc(s.no)+'</td><td>'+esc(s.name)+'</td>'+s.scores.map(v=>'<td>'+esc(v??'')+'</td>').join('')+'<td>'+esc((s.comment||'').slice(0,60))+'</td></tr>').join('');$('qaBox').className='status ok';$('qaBox').textContent='อ่านไฟล์สำเร็จ: '+payload.students.length+' คน / '+payload.questions.length+' ข้อ / Sheet: '+sheet;$('debug').textContent=JSON.stringify(payload,null,2);$('result').className='status ok';$('result').textContent='พร้อมประมวลผล Excel/PDF'}
+$('btnSend').onclick=()=>{if(!payload)return;payload.category=$('category').value;payload.year=$('year').value.trim();payload.title=$('title').value.trim()||payload.title;$('btnSend').disabled=true;$('result').className='status warn';$('result').textContent='กำลังสร้าง Excel/PDF...';google.script.run.withSuccessHandler(out=>{if(out&&out.ok){$('result').className='status ok';$('result').textContent='SUCCESS: สร้างรายงานสำเร็จ';$('links').innerHTML='<a target="_blank" href="'+out.outputSpreadsheetUrl+'">เปิด Excel/Google Sheet</a><a target="_blank" href="'+out.pdfUrl+'">เปิด PDF</a>'}else showErr(out&&out.error||'ไม่ทราบสาเหตุ');$('debug').textContent=JSON.stringify(out,null,2);$('btnSend').disabled=false}).withFailureHandler(err=>{showErr(err.message||err);$('btnSend').disabled=false}).pokkrongProcess(payload)};
+function health(){google.script.run.withSuccessHandler(r=>{$('healthBox').className='status ok';$('healthBox').textContent='Backend พร้อม: '+(r.service||'ok')+' '+(r.version||'')}).withFailureHandler(e=>{$('healthBox').className='status err';$('healthBox').textContent='Backend error: '+(e.message||e)}).pokkrongHealth()}function showErr(t){$('result').className='status err';$('result').textContent='ERROR: '+t}function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}health();
+</script>
+</body>
+</html>
