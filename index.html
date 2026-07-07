@@ -19,6 +19,7 @@
       </div>
       <nav>
         <a href="#command" class="active">ใช้งานจริง</a>
+        <a href="#direct">Direct Upload</a>
         <a href="#connection">Backend</a>
         <a href="#workflow">ขั้นตอน</a>
         <a href="#results">ผลลัพธ์</a>
@@ -26,8 +27,8 @@
       <div class="sidebar-note">
         <span class="dot"></span>
         <div>
-          <b>Production Queue Mode</b>
-          <p>วางไฟล์ใน Drive → Process → Excel/PDF</p>
+          <b>Production Mode</b>
+          <p>Drive Queue หรือ Claude Direct → Excel/PDF</p>
         </div>
       </div>
     </aside>
@@ -37,12 +38,13 @@
         <div>
           <p class="eyebrow">วิทยาลัยพยาบาลทหารอากาศ • ปีการศึกษา 2568</p>
           <h1>เว็บประมวลผลแบบประเมินอัตโนมัติ</h1>
-          <p class="lead">ใช้งานด้วยวิธีที่เสถียรที่สุด: วางไฟล์ดิบใน Google Drive แล้วให้ระบบสร้าง Excel/PDF จากคิว</p>
+          <p class="lead">ใช้งานได้ 2 ทาง: วางไฟล์ใน Drive Queue หรือเปิด Direct Upload แบบ Claude เพื่ออ่าน Excel ใน browser แล้วสร้าง Excel/PDF</p>
         </div>
         <div class="topbar-actions">
           <button class="ghost" onclick="selfTest()">ทดสอบระบบ</button>
           <button class="ghost" onclick="listFiles()">ตรวจคิว</button>
           <button class="primary" onclick="openUploadSystem()">เปิดโฟลเดอร์ Drive</button>
+          <button class="primary" onclick="openDirectUpload()">เปิด Direct Upload</button>
         </div>
       </header>
 
@@ -50,13 +52,14 @@
         <article class="hero-card main-hero">
           <div class="hero-content">
             <span class="system-chip">Stable Production Flow</span>
-            <h2>วางไฟล์จริงใน Drive แล้วกด Process</h2>
-            <p>ปิดการอัปโหลดผ่านฟอร์มเดิมแล้ว เพราะเคยเกิดไฟล์ 0 byte ให้ใช้การวางไฟล์ .xlsx/.xls/.csv/.tsv ในโฟลเดอร์ Drive โดยตรง</p>
+            <h2>เลือกโหมดใช้งานจริง</h2>
+            <p><b>Drive Queue:</b> วางไฟล์ .xlsx/.xls/.csv/.tsv ใน Drive แล้วกด Process. <b>Direct Upload:</b> เปิด Apps Script page ให้อ่านไฟล์ใน browser แล้วส่ง canonical JSON ไม่เกิดไฟล์ 0 byte.</p>
             <div class="hero-actions">
-              <button class="primary big" onclick="openUploadSystem()">1) เปิด Drive เพื่อวางไฟล์</button>
+              <button class="primary big" onclick="openUploadSystem()">1) เปิด Drive Queue</button>
               <button class="ghost big" onclick="listFiles()">2) ตรวจคิว</button>
               <button class="ghost big" onclick="peekQueue()">3) Peek ตรวจข้อมูล</button>
               <button class="danger big" onclick="processFiles()">4) ประมวลผล Excel/PDF</button>
+              <button class="primary big" onclick="openDirectUpload()">หรือเปิด Claude Direct Upload</button>
             </div>
           </div>
           <div class="hero-metric">
@@ -83,6 +86,21 @@
         </article>
       </section>
 
+      <section id="direct" class="panel connection-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow dark">Claude Direct Upload</p>
+            <h2>อ่านไฟล์ใน browser แล้วส่ง canonical JSON</h2>
+          </div>
+          <span class="pill green">No 0-byte upload</span>
+        </div>
+        <p class="muted">โหมดนี้ต่อยอดจาก Claude: หน้า Apps Script จะใช้ SheetJS อ่าน Excel/CSV ในเครื่องผู้ใช้ แล้วส่ง JSON ที่ clean แล้วเข้า backend เพื่อสร้าง Google Sheet และ PDF โดยตรง เหมาะเมื่อไม่อยากวางไฟล์ในคิว Drive.</p>
+        <div class="action-strip">
+          <button class="primary" onclick="openDirectUpload()">เปิด Direct Upload Mode</button>
+          <button onclick="healthCheck()">ตรวจ Backend ก่อนใช้</button>
+        </div>
+      </section>
+
       <section id="connection" class="panel connection-panel">
         <div class="panel-header">
           <div>
@@ -91,7 +109,7 @@
           </div>
           <span class="pill" id="connectionPill">Checking</span>
         </div>
-        <p class="muted">หน้านี้เรียก backend ผ่าน JSONP โดยตรง วิธีใช้จริงคือวางไฟล์ในโฟลเดอร์ <b>00_วางไฟล์ที่นี่</b> แล้วกด ตรวจคิว → Peek → ประมวลผลคิว</p>
+        <p class="muted">หน้านี้เรียก backend ผ่าน JSONP โดยตรง วิธีใช้ Queue คือวางไฟล์ในโฟลเดอร์ <b>00_วางไฟล์ที่นี่</b> แล้วกด ตรวจคิว → Peek → ประมวลผลคิว</p>
         <div class="url-row">
           <input id="gasUrl" placeholder="https://script.google.com/macros/s/xxxxx/exec" />
           <button onclick="saveBackendUrl()">บันทึก</button>
@@ -101,6 +119,7 @@
           <button onclick="healthCheck()">Health v6</button>
           <button onclick="selfTest()">Selftest v6</button>
           <button onclick="openUploadSystem()">เปิดโฟลเดอร์ Drive</button>
+          <button onclick="openDirectUpload()">เปิด Direct Upload</button>
           <button onclick="listFiles()">ตรวจคิว</button>
           <button onclick="peekQueue()">Peek</button>
           <button class="danger" onclick="processFiles()">Process queue</button>
@@ -117,11 +136,11 @@
           <span class="pill green">Ready</span>
         </div>
         <div class="timeline">
-          <div><i>1</i><b>Drive</b><span>วางไฟล์ดิบจริงใน 00_วางไฟล์ที่นี่</span></div>
-          <div><i>2</i><b>List</b><span>ตรวจว่าขนาดไฟล์มากกว่า 0 byte</span></div>
-          <div><i>3</i><b>Peek</b><span>ตรวจจำนวนข้อและผู้ตอบ</span></div>
+          <div><i>1</i><b>Direct หรือ Drive</b><span>เลือก Direct Upload หรือวางไฟล์ใน 00_วางไฟล์ที่นี่</span></div>
+          <div><i>2</i><b>Validate</b><span>ตรวจจำนวนข้อ/ผู้ตอบ และขนาดไฟล์มากกว่า 0 byte</span></div>
+          <div><i>3</i><b>QA</b><span>ใช้คำถามจริง ไม่ใช่ Q1/คอลัมน์_4</span></div>
           <div><i>4</i><b>Process</b><span>สร้าง Excel/Sheet และ PDF</span></div>
-          <div><i>5</i><b>QA</b><span>ดู QA_Log ก่อนใช้ทางราชการ</span></div>
+          <div><i>5</i><b>Review</b><span>ดู QA_Log ก่อนใช้ทางราชการ</span></div>
           <div><i>6</i><b>Ship</b><span>เปิดลิงก์ outputSpreadsheetUrl/pdfUrls</span></div>
         </div>
       </section>
