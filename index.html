@@ -4,17 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#071b3a" />
-  <title>RTAFNC Assessment Web App</title>
+  <title>แปลผลการประเมิน ผปค.วพอ.พอ.</title>
   <link rel="stylesheet" href="assets/styles.css" />
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand-block">
-        <div class="brand-mark">NC</div>
+        <div class="brand-mark">ผปค</div>
         <div>
           <strong>RTAFNC</strong>
-          <span>Assessment Web App</span>
+          <span>Parent Evaluation</span>
         </div>
       </div>
       <nav>
@@ -27,8 +27,8 @@
       <div class="sidebar-note">
         <span class="dot"></span>
         <div>
-          <b>Production Mode</b>
-          <p>Drive Queue หรือ Claude Direct → Excel/PDF</p>
+          <b>Production Guard</b>
+          <p>Health → Selftest → Peek → Process</p>
         </div>
       </div>
     </aside>
@@ -36,65 +36,69 @@
     <main class="workspace">
       <header class="topbar">
         <div>
-          <p class="eyebrow">วิทยาลัยพยาบาลทหารอากาศ • ปีการศึกษา 2568</p>
-          <h1>เว็บประมวลผลแบบประเมินอัตโนมัติ</h1>
-          <p class="lead">ใช้งานได้ 2 ทาง: วางไฟล์ใน Drive Queue หรือเปิด Direct Upload แบบ Claude เพื่ออ่าน Excel ใน browser แล้วสร้าง Excel/PDF</p>
+          <p class="eyebrow">วิทยาลัยพยาบาลทหารอากาศ • ผปค.วพอ.พอ.</p>
+          <h1>เว็บแปลผลการประเมินตามปีการศึกษา</h1>
+          <p class="lead">สรุปผลแบบประเมินจาก Excel/Forms เป็นรายงานรายกิจกรรม รายบุคคล รายข้อ และ PDF/Excel พร้อม QA_Log โดยไม่สร้างข้อมูลจากการเดา</p>
         </div>
         <div class="topbar-actions">
           <button class="ghost" onclick="selfTest()">ทดสอบระบบ</button>
           <button class="ghost" onclick="listFiles()">ตรวจคิว</button>
           <button class="primary" onclick="openUploadSystem()">เปิดโฟลเดอร์ Drive</button>
-          <button class="primary" onclick="openDirectUpload()">เปิด Direct Upload</button>
+          <button class="primary" onclick="openDirectUpload()">Direct Upload</button>
         </div>
       </header>
 
       <section id="command" class="hero-grid">
         <article class="hero-card main-hero">
           <div class="hero-content">
-            <span class="system-chip">Stable Production Flow</span>
-            <h2>เลือกโหมดใช้งานจริง</h2>
-            <p><b>Drive Queue:</b> วางไฟล์ .xlsx/.xls/.csv/.tsv ใน Drive แล้วกด Process. <b>Direct Upload:</b> เปิด Apps Script page ให้อ่านไฟล์ใน browser แล้วส่ง canonical JSON ไม่เกิดไฟล์ 0 byte.</p>
+            <span class="system-chip">อ่านก่อน → คิดก่อน → แก้ทีละส่วน → ตรวจสอบเสมอ</span>
+            <h2>เลือกปีการศึกษา แล้วประมวลผล</h2>
+            <p><b>Drive Queue:</b> วางไฟล์ .xlsx/.xls/.csv/.tsv ใน Drive แล้วกด Process. <b>Direct Upload:</b> เปิดหน้า Apps Script เพื่ออัปโหลดจากเครื่องโดยตรง</p>
+            <div class="url-row" style="margin-bottom:12px">
+              <input id="academicYear" placeholder="ปีการศึกษา เช่น 2568" maxlength="4" />
+              <button class="ghost navy" onclick="healthCheck()">ใช้ปีนี้</button>
+            </div>
             <div class="hero-actions">
               <button class="primary big" onclick="openUploadSystem()">1) เปิด Drive Queue</button>
-              <button class="ghost big" onclick="listFiles()">2) ตรวจคิว</button>
-              <button class="ghost big" onclick="peekQueue()">3) Peek ตรวจข้อมูล</button>
-              <button class="danger big" onclick="processFiles()">4) ประมวลผล Excel/PDF</button>
-              <button class="primary big" onclick="openDirectUpload()">หรือเปิด Claude Direct Upload</button>
+              <button class="ghost big" onclick="healthCheck()">2) Health</button>
+              <button class="ghost big" onclick="selfTest()">3) Selftest</button>
+              <button class="ghost big" onclick="peekQueue()">4) Peek</button>
+              <button class="danger big" onclick="processFiles()">5) Process</button>
             </div>
           </div>
           <div class="hero-metric">
             <span>Ship Gate</span>
-            <b>SUCCESS</b>
-            <small>ต้องมี outputSpreadsheetUrl + pdfUrls</small>
+            <b>PASS เท่านั้น</b>
+            <small>ต้องมี outputSpreadsheetUrl + pdfUrls + QA_Log</small>
           </div>
         </article>
 
         <article class="metric-card">
           <span class="metric-label">Input</span>
-          <strong>.xlsx .xls .csv .tsv</strong>
-          <p>ไฟล์ต้องไม่ใช่ 0 byte</p>
+          <strong>Excel/Forms</strong>
+          <p>รองรับ .xlsx .xls .csv .tsv และไฟล์ต้องไม่ใช่ 0 byte</p>
         </article>
         <article class="metric-card">
           <span class="metric-label">Output</span>
-          <strong>Excel + PDF</strong>
-          <p>Dashboard, Item_Dictionary, QA_Log</p>
+          <strong>รายบุคคล + กิจกรรม</strong>
+          <p>Item_Dictionary, Items_X_SD, Individual_All_Items</p>
         </article>
         <article class="metric-card">
           <span class="metric-label">QA</span>
-          <strong>v6 Source-driven</strong>
-          <p>ไม่เดาแยกชั้นปี</p>
+          <strong>ไม่เดา</strong>
+          <p>ถ้าไม่มี source ชั้นปี จะไม่สร้างรายงานแยกปีปลอม</p>
         </article>
       </section>
 
       <section id="direct" class="panel connection-panel">
         <div class="panel-header">
           <div>
-            <p class="eyebrow dark">Claude Direct Upload</p>
-            <h2>อ่านไฟล์ใน browser แล้วส่ง canonical JSON</h2>
+            <p class="eyebrow dark">Direct Upload</p>
+            <h2>อัปโหลดไฟล์จากเครื่องโดยตรง</h2>
           </div>
-          <span class="pill green">No 0-byte upload</span>
+          <span class="pill green">ลดปัญหา 0-byte</span>
         </div>
-        <p class="muted">โหมดนี้ต่อยอดจาก Claude: หน้า Apps Script จะใช้ SheetJS อ่าน Excel/CSV ในเครื่องผู้ใช้ แล้วส่ง JSON ที่ clean แล้วเข้า backend เพื่อสร้าง Google Sheet และ PDF โดยตรง เหมาะเมื่อไม่อยากวางไฟล์ในคิว Drive.</p>
+        <p class="muted">เหมาะกับการทดสอบเร็วหรือไฟล์ดิบจาก Microsoft Forms/Excel. เมื่ออัปโหลดแล้วระบบจะอ่านคำถามจริง เก็บคะแนนรายข้อ สรุปข้อเสนอแนะ และสร้างรายงาน</p>
         <div class="action-strip">
           <button class="primary" onclick="openDirectUpload()">เปิด Direct Upload Mode</button>
           <button onclick="healthCheck()">ตรวจ Backend ก่อนใช้</button>
@@ -109,7 +113,7 @@
           </div>
           <span class="pill" id="connectionPill">Checking</span>
         </div>
-        <p class="muted">หน้านี้เรียก backend ผ่าน JSONP โดยตรง วิธีใช้ Queue คือวางไฟล์ในโฟลเดอร์ <b>00_วางไฟล์ที่นี่</b> แล้วกด ตรวจคิว → Peek → ประมวลผลคิว</p>
+        <p class="muted">ก่อน Process ให้กด Health, Selftest และ Peek ตามลำดับ ถ้า Peek แสดง Q1/Q2/Column/คอลัมน์ ให้หยุดและแก้หัวคำถามก่อน</p>
         <div class="url-row">
           <input id="gasUrl" placeholder="https://script.google.com/macros/s/xxxxx/exec" />
           <button onclick="saveBackendUrl()">บันทึก</button>
@@ -118,8 +122,7 @@
         <div class="action-strip">
           <button onclick="healthCheck()">Health v6</button>
           <button onclick="selfTest()">Selftest v6</button>
-          <button onclick="openUploadSystem()">เปิดโฟลเดอร์ Drive</button>
-          <button onclick="openDirectUpload()">เปิด Direct Upload</button>
+          <button onclick="openUploadSystem()">เปิด Drive Queue</button>
           <button onclick="listFiles()">ตรวจคิว</button>
           <button onclick="peekQueue()">Peek</button>
           <button class="danger" onclick="processFiles()">Process queue</button>
@@ -130,18 +133,18 @@
       <section id="workflow" class="panel">
         <div class="panel-header">
           <div>
-            <p class="eyebrow dark">Standard Workflow</p>
-            <h2>ขั้นตอนประมวลผลที่ใช้จริง</h2>
+            <p class="eyebrow dark">Workflow สำหรับคนไม่เขียนโค้ด</p>
+            <h2>ภาพรวมการทำงาน</h2>
           </div>
-          <span class="pill green">Ready</span>
+          <span class="pill green">Step-by-step</span>
         </div>
         <div class="timeline">
-          <div><i>1</i><b>Direct หรือ Drive</b><span>เลือก Direct Upload หรือวางไฟล์ใน 00_วางไฟล์ที่นี่</span></div>
-          <div><i>2</i><b>Validate</b><span>ตรวจจำนวนข้อ/ผู้ตอบ และขนาดไฟล์มากกว่า 0 byte</span></div>
-          <div><i>3</i><b>QA</b><span>ใช้คำถามจริง ไม่ใช่ Q1/คอลัมน์_4</span></div>
-          <div><i>4</i><b>Process</b><span>สร้าง Excel/Sheet และ PDF</span></div>
-          <div><i>5</i><b>Review</b><span>ดู QA_Log ก่อนใช้ทางราชการ</span></div>
-          <div><i>6</i><b>Ship</b><span>เปิดลิงก์ outputSpreadsheetUrl/pdfUrls</span></div>
+          <div><i>1</i><b>เลือกปี</b><span>ระบุปีการศึกษา เช่น 2568</span></div>
+          <div><i>2</i><b>ใส่ไฟล์</b><span>Direct Upload หรือวางไฟล์ใน Drive Queue</span></div>
+          <div><i>3</i><b>ตรวจ</b><span>Health และ Selftest ต้องผ่าน</span></div>
+          <div><i>4</i><b>Peek</b><span>ดูจำนวนข้อ ผู้ตอบ และตัวอย่างคำถามจริง</span></div>
+          <div><i>5</i><b>Process</b><span>สร้าง Excel/Sheet และ PDF</span></div>
+          <div><i>6</i><b>ใช้จริง</b><span>เปิด QA_Log ก่อนส่งรายงาน</span></div>
         </div>
       </section>
 
@@ -162,8 +165,8 @@
       </section>
 
       <footer>
-        <span>RTAFNC Assessment Web App</span>
-        <b>อ่านก่อน → คิดก่อน → แก้ทีละส่วน → ตรวจสอบเสมอ</b>
+        <span>RTAFNC Parent Evaluation Web App</span>
+        <b>PASS เมื่อมี Excel/Sheet + PDF + QA_Log เท่านั้น</b>
       </footer>
     </main>
   </div>
