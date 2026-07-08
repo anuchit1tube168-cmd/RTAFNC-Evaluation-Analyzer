@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'RTAFNC_GAS_WEB_APP_URL';
+const YEAR_KEY = 'RTAFNC_PARENT_EVALUATION_YEAR';
 const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbz3Uq3oJtOu95URz2HfcgdPnoRYPdaJfFoRi1Eh9-9sRkTx-_iEODKFNN903N0BcVQq/exec';
 const DRIVE_PENDING_FOLDER = 'https://drive.google.com/drive/folders/1fNEzh_47BmVwuNLY3tgnYq0Jy7RsFaue';
 
@@ -7,6 +8,11 @@ window.addEventListener('DOMContentLoaded', () => {
   const input = document.getElementById('gasUrl');
   if (input) input.value = saved;
   if (!localStorage.getItem(STORAGE_KEY)) localStorage.setItem(STORAGE_KEY, DEFAULT_BACKEND_URL);
+
+  const y = document.getElementById('academicYear');
+  const savedYear = localStorage.getItem(YEAR_KEY) || '2568';
+  if (y) y.value = savedYear;
+
   healthCheck();
 });
 
@@ -22,6 +28,14 @@ function resetBackendUrl(){
   healthCheck();
 }
 function getBackendUrl(){ return localStorage.getItem(STORAGE_KEY) || DEFAULT_BACKEND_URL; }
+function getAcademicYear(){
+  const el = document.getElementById('academicYear');
+  const year = (el && el.value ? el.value : localStorage.getItem(YEAR_KEY) || '2568').trim();
+  const clean = /^25\d{2}$/.test(year) ? year : '2568';
+  localStorage.setItem(YEAR_KEY, clean);
+  if (el) el.value = clean;
+  return clean;
+}
 function openUploadSystem(){ window.open(DRIVE_PENDING_FOLDER, '_blank', 'noopener'); }
 function setBackendStatus(text, cls){ const el=document.getElementById('backendStatus'); if(el){ el.textContent=text; el.className='status '+(cls||''); } }
 function setRunStatus(text, cls){ const el=document.getElementById('runStatus'); if(el){ el.textContent=text; el.className='status '+(cls||''); } }
@@ -31,7 +45,7 @@ function esc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','
 
 function jsonp(action, params={}){
   const cb = 'rtafnc_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-  const query = new URLSearchParams({ action, callback: cb, ...params });
+  const query = new URLSearchParams({ action, callback: cb, academicYear: getAcademicYear(), ...params });
   const url = getBackendUrl() + '?' + query.toString();
   return new Promise((resolve,reject)=>{
     const script=document.createElement('script');
@@ -46,12 +60,12 @@ function jsonp(action, params={}){
 
 async function healthCheck(){
   try{
-    setBackendStatus('กำลังตรวจ Backend v6...', 'warn');
+    setBackendStatus('กำลังตรวจ Backend v6 สำหรับ ผปค.วพอ.พอ. ปีการศึกษา '+getAcademicYear()+'...', 'warn');
     setPill('connectionPill','Checking',false);
     const data = await jsonp('healthv6');
     if(data && data.ok === false) throw new Error(data.error || 'Backend returned ok=false');
     const ok = data.version === 'v6-source-driven-reports';
-    setBackendStatus(ok ? 'Backend v6 พร้อมใช้งาน' : 'Backend ตอบสนองแต่ยังไม่ใช่ v6', ok ? 'ok' : 'warn');
+    setBackendStatus(ok ? 'Backend v6 พร้อมใช้งานสำหรับแปลผลการประเมิน' : 'Backend ตอบสนองแต่ยังไม่ใช่ v6', ok ? 'ok' : 'warn');
     setPill('connectionPill', ok ? 'v6 Online' : 'Review', ok);
     printRaw(data);
   }catch(err){ showError(err); setBackendStatus('Backend ยังไม่พร้อม: '+(err.message||err),'warn'); }
@@ -59,7 +73,7 @@ async function healthCheck(){
 
 async function selfTest(){
   try{
-    setRunStatus('กำลังทดสอบระบบ v6...', 'warn');
+    setRunStatus('กำลังทดสอบระบบ v6 ก่อนใช้จริง...', 'warn');
     setPill('lastRunPill','Selftest',false);
     const data = await jsonp('selftestv6');
     if(data && data.ok === false) throw new Error(data.error || 'Backend returned ok=false');
@@ -73,7 +87,7 @@ async function selfTest(){
 
 async function listFiles(){
   try{
-    setRunStatus('กำลังตรวจไฟล์ในคิว Drive...', 'warn');
+    setRunStatus('กำลังตรวจไฟล์แบบประเมินในคิว Drive...', 'warn');
     setPill('lastRunPill','List queue',false);
     const data = await jsonp('list');
     if(data && data.ok === false) throw new Error(data.error || 'Backend returned ok=false');
@@ -89,13 +103,13 @@ async function listFiles(){
 
 async function peekQueue(){
   try{
-    setRunStatus('กำลัง Peek ไฟล์แรกที่พร้อมประมวลผล...', 'warn');
+    setRunStatus('กำลัง Peek เพื่อตรวจว่าระบบอ่านคำถามจริงและจำนวนผู้ตอบได้...', 'warn');
     setPill('lastRunPill','Peek',false);
     const data = await jsonp('peek');
     if(data && data.ok === false) throw new Error(data.error || 'Backend returned ok=false');
     const best = data.best || data;
     const ok = Number(best.itemCount||0)>0 && Number(best.respondentCount||0)>0;
-    setRunStatus(ok ? `Peek ผ่าน: ${best.itemCount} ข้อ / ${best.respondentCount} ผู้ตอบ` : 'Peek ยังไม่ผ่าน', ok ? 'ok' : 'warn');
+    setRunStatus(ok ? `Peek ผ่าน: ${best.itemCount} ข้อ / ${best.respondentCount} ผู้ตอบ` : 'Peek ยังไม่ผ่าน ห้าม Process', ok ? 'ok' : 'warn');
     setPill('lastRunPill', ok ? 'Peek OK' : 'Peek Review', ok);
     renderPeek(data);
     printRaw(data);
@@ -103,9 +117,9 @@ async function peekQueue(){
 }
 
 async function processFiles(){
-  if(!confirm('ยืนยันประมวลผลไฟล์ในคิว Drive?')) return;
+  if(!confirm('ยืนยันประมวลผลแบบประเมิน ผปค.วพอ.พอ. ปีการศึกษา '+getAcademicYear()+'? ตรวจ Health/Selftest/Peek แล้วเท่านั้น')) return;
   try{
-    setRunStatus('กำลังสร้าง Excel/Sheet และ PDF...', 'warn');
+    setRunStatus('กำลังสร้าง Excel/Sheet และ PDF สำหรับปีการศึกษา '+getAcademicYear()+'...', 'warn');
     setPill('lastRunPill','Processing',false);
     const data = await jsonp('process');
     if(data && data.ok === false) throw new Error(data.error || 'Backend returned ok=false');
@@ -136,15 +150,16 @@ function renderFiles(files){
 function renderPeek(data){
   const best = data.best || data || {};
   const items = Array.isArray(best.firstItems) ? best.firstItems.join(' | ') : '';
-  document.getElementById('resultTable').innerHTML = `<table><thead><tr><th>รายการ</th><th>ค่า</th></tr></thead><tbody><tr><td>ไฟล์</td><td>${esc(best.file||data.file||'')}</td></tr><tr><td>จำนวนข้อ</td><td>${esc(best.itemCount||'')}</td></tr><tr><td>จำนวนผู้ตอบ</td><td>${esc(best.respondentCount||'')}</td></tr><tr><td>ตัวอย่างข้อ</td><td>${esc(items)}</td></tr></tbody></table>`;
+  const review = /(^|\|\s*)(Q\d+|Question\d+|Column\d+|คอลัมน์[_\s]*\d+)/i.test(items);
+  document.getElementById('resultTable').innerHTML = `<table><thead><tr><th>รายการ</th><th>ค่า</th></tr></thead><tbody><tr><td>ไฟล์</td><td>${esc(best.file||data.file||'')}</td></tr><tr><td>จำนวนข้อ</td><td>${esc(best.itemCount||'')}</td></tr><tr><td>จำนวนผู้ตอบ</td><td>${esc(best.respondentCount||'')}</td></tr><tr><td>ตัวอย่างข้อ</td><td>${esc(items)}</td></tr><tr><td>QA หัวข้อคำถาม</td><td>${review?'<b class="warn-text">REVIEW: พบ Q/Column/คอลัมน์</b>':'<b class="ok-text">PASS เบื้องต้น</b>'}</td></tr></tbody></table>`;
 }
 function renderResults(results){
   const rows = results.map(r => {
     const sheet = r.outputSpreadsheetUrl || r.sheetUrl || r.outputUrl || '';
     const pdfs = Array.isArray(r.pdfUrls) ? r.pdfUrls : (r.pdfUrl ? [{label:'PDF', url:r.pdfUrl}] : []);
-    const sheetLink = sheet ? `<a href="${sheet}" target="_blank">เปิด Excel/Sheet</a>` : '';
-    const pdfLinks = pdfs.map(p => p.url ? `<a href="${p.url}" target="_blank">${esc(p.label || 'PDF')}</a>` : '').join('<br>');
-    return `<tr><td><b>${esc(r.file||'')}</b></td><td>${badge(r.status||'')}</td><td>${esc(r.itemCount||'')}</td><td>${esc(r.respondents||r.respondentCount||'')}</td><td>${sheetLink}</td><td>${pdfLinks}</td><td>${esc(r.message||'')}</td></tr>`;
+    const sheetLink = sheet ? `<a href="${sheet}" target="_blank">เปิด Excel/Sheet</a>` : '<b class="warn-text">ไม่มี Sheet URL</b>';
+    const pdfLinks = pdfs.length ? pdfs.map(p => p.url ? `<a href="${p.url}" target="_blank">${esc(p.label || 'PDF')}</a>` : '').join('<br>') : '<b class="warn-text">ไม่มี PDF URL</b>';
+    return `<tr><td><b>${esc(r.file||'')}</b></td><td>${badge(r.status||'')}</td><td>${esc(r.itemCount||'')}</td><td>${esc(r.respondents||r.respondentCount||'')}</td><td>${sheetLink}</td><td>${pdfLinks}</td><td>${esc(r.message||r.category||'')}</td></tr>`;
   }).join('');
   document.getElementById('resultTable').innerHTML = `<table><thead><tr><th>ไฟล์</th><th>Status</th><th>ข้อ</th><th>ผู้ตอบ</th><th>Excel/Sheet</th><th>PDF</th><th>หมายเหตุ</th></tr></thead><tbody>${rows || '<tr><td colspan="7">ไม่มีผลลัพธ์</td></tr>'}</tbody></table>`;
 }
