@@ -24,6 +24,7 @@ function apiGet_(p) {
     else if (action === 'parenthealth') result = parentHealth();
     else if (action === 'parentsetup') result = parentSetup();
     else if (action === 'parentselftest') result = parentSelfTest();
+    else if (action === 'parentdiagnostic') result = parentDiagnostic();
     else if (action === 'parentactivities') result = parentListActivities({ academicYear: p.academicYear || '' });
     else if (action === 'parentitems') result = parentGetItems({ activityId: p.activityId || '' });
     else if (action === 'parentdashboard') result = parentGetDashboard({ academicYear: p.academicYear || '', activityId: p.activityId || '' });
