@@ -1,5 +1,6 @@
 function parentGetDashboard(input) {
   const i = input || {};
+  PE_requireAdmin_(i.adminKey);
   const academicYear = PE_clean_(i.academicYear || '');
   const activityId = PE_clean_(i.activityId || '');
 
@@ -43,6 +44,7 @@ function parentGetDashboard(input) {
 
 function parentGetIndividualReport(input) {
   const i = input || {};
+  PE_requireAdmin_(i.adminKey);
   const academicYear = PE_clean_(i.academicYear || '');
   const studentId = PE_clean_(i.studentId || '');
   const studentName = PE_clean_(i.studentName || '');
@@ -114,12 +116,15 @@ function parentGetIndividualReport(input) {
 }
 
 function parentExportActivityPdf(input) {
-  const activityId = PE_clean_(input && input.activityId || '');
+  const i = input || {};
+  PE_requireAdmin_(i.adminKey);
+  const activityId = PE_clean_(i.activityId || '');
   const activity = PE_activity_(activityId);
   if (!activityId) throw Error('ต้องระบุ activityId');
   if (!activity) throw Error('ไม่พบกิจกรรม');
 
   const report = parentGetDashboard({
+    adminKey: i.adminKey,
     academicYear: activity.academicYear,
     activityId: activityId
   });
@@ -162,7 +167,9 @@ function parentExportActivityPdf(input) {
 }
 
 function parentExportIndividualPdf(input) {
-  const report = parentGetIndividualReport(input || {});
+  const i = input || {};
+  PE_requireAdmin_(i.adminKey);
+  const report = parentGetIndividualReport(i);
   if (!report.details.length) throw Error('ไม่พบข้อมูลรายบุคคลสำหรับสร้าง PDF');
 
   const first = report.details[0];
