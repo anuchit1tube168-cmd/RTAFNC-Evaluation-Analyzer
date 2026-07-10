@@ -25,9 +25,11 @@ function apiGet_(p) {
     else if (action === 'parentsetup') result = parentSetup();
     else if (action === 'parentselftest') result = parentSelfTest();
     else if (action === 'parentactivities') result = parentListActivities({ academicYear: p.academicYear || '' });
+    else if (action === 'parentitems') result = parentGetItems({ activityId: p.activityId || '' });
     else if (action === 'parentdashboard') result = parentGetDashboard({ academicYear: p.academicYear || '', activityId: p.activityId || '' });
     else if (action === 'parentindividual') result = parentGetIndividualReport({ academicYear: p.academicYear || '', studentId: p.studentId || '', studentName: p.studentName || '' });
     else if (action === 'parentexportpdf') result = parentExportActivityPdf({ activityId: p.activityId || '' });
+    else if (action === 'parentexportindividualpdf') result = parentExportIndividualPdf({ academicYear: p.academicYear || '', studentId: p.studentId || '', studentName: p.studentName || '' });
     else if (action === 'pokkronghealth') result = pokkrongHealth();
     else if (action === 'health') result = getHealth_();
     else if (action === 'list') result = { ok: true, files: listPendingFiles() };
