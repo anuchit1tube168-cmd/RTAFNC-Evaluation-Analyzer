@@ -12,9 +12,7 @@ function doGet(e) {
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
   if (p.action || p.callback) return apiGet_(p);
-  return HtmlService.createHtmlOutput(buildUploadPage_())
-    .setTitle('RTAFNC Evaluation Analyzer')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  return buildUploadPage_();
 }
 
 function apiGet_(p) {
