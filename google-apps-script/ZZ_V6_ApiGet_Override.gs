@@ -1,14 +1,35 @@
 /**
  * RTAFNC v6 API route override
- * Adds explicit URL actions healthv6 and selftestv6.
+ * Adds explicit URL actions and the parent evaluation page.
  */
+
+function doGet(e) {
+  const p = (e && e.parameter) || {};
+  if (String(p.mode || '').toLowerCase() === 'parent') {
+    return HtmlService.createTemplateFromFile('Parent_Evaluation')
+      .evaluate()
+      .setTitle('ระบบแปลผลการประเมินผู้ปกครอง วพอ.พอ.')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+  if (p.action || p.callback) return apiGet_(p);
+  return HtmlService.createHtmlOutput(buildUploadPage_())
+    .setTitle('RTAFNC Evaluation Analyzer')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
 
 function apiGet_(p) {
   let result;
   try {
-    const action = p.action || 'health';
+    const action = String(p.action || 'health').toLowerCase();
     if (action === 'healthv6') result = getHealthV6_();
     else if (action === 'selftestv6') result = selfTestV6_();
+    else if (action === 'parenthealth') result = parentHealth();
+    else if (action === 'parentsetup') result = parentSetup();
+    else if (action === 'parentselftest') result = parentSelfTest();
+    else if (action === 'parentactivities') result = parentListActivities({ academicYear: p.academicYear || '' });
+    else if (action === 'parentdashboard') result = parentGetDashboard({ academicYear: p.academicYear || '', activityId: p.activityId || '' });
+    else if (action === 'parentindividual') result = parentGetIndividualReport({ academicYear: p.academicYear || '', studentId: p.studentId || '', studentName: p.studentName || '' });
+    else if (action === 'parentexportpdf') result = parentExportActivityPdf({ activityId: p.activityId || '' });
     else if (action === 'pokkronghealth') result = pokkrongHealth();
     else if (action === 'health') result = getHealth_();
     else if (action === 'list') result = { ok: true, files: listPendingFiles() };
