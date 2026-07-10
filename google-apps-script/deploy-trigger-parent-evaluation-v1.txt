@@ -1,13 +1,19 @@
-Deploy parent evaluation module v1
+Deploy secure parent evaluation module v1.1
 Route: ?mode=parent
-Final route commit: f4be5c2615aa36245c51b0e7bc0ba667c450ccca
-Diagnostic commit: 3b9fde442e6380f5bc0e19ea4613343e15f4716a
+Security commit: 4075d5e15cb36456d047a64de67c1be5a7c74ef6
+Reports commit: ae463d15fda1138e8bcbd88733d1073af9add2d4
+Import commit: 44b91bacb076f55c64a6410c0733aec5edc89255
+Router commit: b50260a32e05466c53f8e506178f5becf9ef13c0
+Web UI commit: 6df6fc8e81b131f9985e6aa556ed480b4b3d3855
 Required checks after deployment:
 1. Parent page opens
-2. parentHealth returns PASS
-3. parentSelfTest allPass is true
-4. parentDiagnostic allPass is true
-5. Setup creates PE_Activities, PE_Item_Dictionary, PE_Responses, PE_QA_Log
-6. Existing upload page still opens without mode=parent
-7. parentitems returns real item text
-8. parentexportindividualpdf returns pdfUrl
+2. Setup accepts Admin Key with at least 8 characters
+3. parentHealth returns version parent-evaluation-v1.1.0
+4. parentSelfTest allPass is true
+5. parentDiagnostic allPass is true with valid Admin Key
+6. Setup creates PE_Activities, PE_Item_Dictionary, PE_Responses, PE_QA_Log
+7. Existing upload page still opens without mode=parent
+8. Public response functions work without Admin Key
+9. Activity, import, dashboard, individual report and PDF reject a missing/wrong Admin Key
+10. parentitems returns real item text
+11. parentexportindividualpdf returns pdfUrl with valid Admin Key
