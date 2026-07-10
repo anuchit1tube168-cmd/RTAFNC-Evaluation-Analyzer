@@ -1,11 +1,13 @@
 Deploy parent evaluation module v1
 Route: ?mode=parent
-Final route commit: 64d10abfe5be2f0c315e0dff64e6337d49f67245
+Final route commit: f4be5c2615aa36245c51b0e7bc0ba667c450ccca
+Diagnostic commit: 3b9fde442e6380f5bc0e19ea4613343e15f4716a
 Required checks after deployment:
 1. Parent page opens
 2. parentHealth returns PASS
 3. parentSelfTest allPass is true
-4. Setup creates PE_Activities, PE_Item_Dictionary, PE_Responses, PE_QA_Log
-5. Existing upload page still opens without mode=parent
-6. parentitems returns real item text
-7. parentexportindividualpdf returns pdfUrl
+4. parentDiagnostic allPass is true
+5. Setup creates PE_Activities, PE_Item_Dictionary, PE_Responses, PE_QA_Log
+6. Existing upload page still opens without mode=parent
+7. parentitems returns real item text
+8. parentexportindividualpdf returns pdfUrl
