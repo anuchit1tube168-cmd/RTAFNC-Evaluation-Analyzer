@@ -1,7 +1,245 @@
-function parentGetDashboard(i){i=i||{};const y=PE_clean_(i.academicYear||''),id=PE_clean_(i.activityId||'');const acts=PE_read_(PE_CONFIG.SHEETS.ACTIVITIES).filter(a=>(!y||String(a.academicYear)===y)&&(!id||String(a.activityId)===id));const rs=PE_read_(PE_CONFIG.SHEETS.RESPONSES).filter(r=>(!y||String(r.academicYear)===y)&&(!id||String(r.activityId)===id));const summaries=acts.map(a=>{const ar=rs.filter(r=>String(r.activityId)===String(a.activityId)),v=ar.map(r=>Number(r.average)).filter(isFinite),m=v.length?PE_round2_(PE_mean_(v)):'';return{activityId:a.activityId,academicYear:a.academicYear,activityName:a.activityName,activityDate:a.activityDate,responseCount:ar.length,average:m,sd:v.length?PE_round2_(PE_sd_(v)):'',level:v.length?PE_level_(m):'ยังไม่มีข้อมูล'}});return{ok:true,status:'PASS',academicYear:y,activityId:id,summaryCount:summaries.length,responseCount:rs.length,summaries,itemStats:id?PE_itemStats_(id,rs):[]}}
+function parentGetDashboard(input) {
+  const i = input || {};
+  const academicYear = PE_clean_(i.academicYear || '');
+  const activityId = PE_clean_(i.activityId || '');
 
-function parentGetIndividualReport(i){i=i||{};const y=PE_clean_(i.academicYear||''),sid=PE_clean_(i.studentId||''),sn=PE_clean_(i.studentName||'');if(!y)throw Error('ต้องระบุปีการศึกษา');if(!sid&&!sn)throw Error('ต้องระบุรหัสหรือชื่อนักเรียน');let rs=PE_read_(PE_CONFIG.SHEETS.RESPONSES).filter(r=>String(r.academicYear)===y);if(sid)rs=rs.filter(r=>String(r.studentId)===sid);if(sn)rs=rs.filter(r=>String(r.studentName||'').includes(sn));const map={};PE_read_(PE_CONFIG.SHEETS.ACTIVITIES).forEach(a=>map[a.activityId]=a);const details=rs.map(r=>({responseId:r.responseId,timestamp:r.timestamp,activityId:r.activityId,activityName:(map[r.activityId]||{}).activityName||'',studentId:r.studentId,studentName:r.studentName,parentName:r.parentName,relationship:r.relationship,average:Number(r.average),sd:Number(r.sd),level:r.level,comments:r.comments,qaStatus:r.qaStatus}));const v=details.map(d=>Number(d.average)).filter(isFinite),m=v.length?PE_round2_(PE_mean_(v)):'';return{ok:true,status:details.length?'PASS':'REVIEW',academicYear:y,studentId:sid,studentName:sn,responseCount:details.length,overallAverage:m,overallSd:v.length?PE_round2_(PE_sd_(v)):'',overallLevel:v.length?PE_level_(m):'ไม่พบข้อมูล',details}}
+  const activities = PE_read_(PE_CONFIG.SHEETS.ACTIVITIES).filter(a =>
+    (!academicYear || String(a.academicYear) === academicYear) &&
+    (!activityId || String(a.activityId) === activityId)
+  );
 
-function parentExportActivityPdf(i){const id=PE_clean_(i&&i.activityId||''),a=PE_activity_(id);if(!id)throw Error('ต้องระบุ activityId');if(!a)throw Error('ไม่พบกิจกรรม');const d=parentGetDashboard({academicYear:a.academicYear,activityId:id}),s=d.summaries[0]||{},doc=DocumentApp.create('รายงานผู้ปกครอง_'+a.academicYear+'_'+a.activityName),b=doc.getBody();b.appendParagraph('รายงานแปลผลการประเมินผู้ปกครอง วิทยาลัยพยาบาลทหารอากาศ').setHeading(DocumentApp.ParagraphHeading.HEADING1);b.appendParagraph('ปีการศึกษา: '+a.academicYear);b.appendParagraph('กิจกรรม: '+a.activityName);b.appendParagraph('วันที่กิจกรรม: '+(a.activityDate||'-'));b.appendParagraph('จำนวนผู้ตอบ: '+(s.responseCount||0));b.appendParagraph('ค่าเฉลี่ยรวม: '+(s.average===''?'-':s.average));b.appendParagraph('S.D.: '+(s.sd===''?'-':s.sd));b.appendParagraph('ระดับ: '+(s.level||'-'));b.appendParagraph('ผลรายข้อ').setHeading(DocumentApp.ParagraphHeading.HEADING2);const t=[['ข้อ','รายการประเมิน','n','ค่าเฉลี่ย','S.D.','แปลผล']];d.itemStats.forEach(x=>t.push([String(x.itemNo),String(x.itemText),String(x.count),String(x.average),String(x.sd),String(x.level)]));b.appendTable(t);b.appendParagraph('หมายเหตุ: ใช้ข้อความคำถามจริงจาก PE_Item_Dictionary');doc.saveAndClose();const blob=DriveApp.getFileById(doc.getId()).getAs(MimeType.PDF).setName('รายงานแปลผล_'+PE_safe_(a.academicYear+'_'+a.activityName)+'.pdf'),f=PE_folder_(PE_CONFIG.PDF_FOLDER_NAME).createFile(blob);DriveApp.getFileById(doc.getId()).setTrashed(true);PE_logQa_('exportPdf','PASS','Export PDF complete',{activityId:id,pdfUrl:f.getUrl()});return{ok:true,status:'PASS',activityId:id,pdfUrl:f.getUrl(),fileId:f.getId()}}
+  const responses = PE_read_(PE_CONFIG.SHEETS.RESPONSES).filter(r =>
+    (!academicYear || String(r.academicYear) === academicYear) &&
+    (!activityId || String(r.activityId) === activityId)
+  );
 
-function PE_itemStats_(id,rs){return PE_items_(id).map((it,k)=>{const v=rs.filter(r=>String(r.activityId)===String(id)).map(r=>{try{return Number(JSON.parse(r.scoresJson||'[]')[k])}catch(e){return NaN}}).filter(n=>isFinite(n)&&n>=1&&n<=5),m=v.length?PE_round2_(PE_mean_(v)):'';return{itemNo:Number(it.itemNo),itemText:it.itemText,count:v.length,average:m,sd:v.length?PE_round2_(PE_sd_(v)):'',level:v.length?PE_level_(m):'ยังไม่มีข้อมูล'}})}
+  const summaries = activities.map(a => {
+    const rows = responses.filter(r => String(r.activityId) === String(a.activityId));
+    const values = rows.map(r => Number(r.average)).filter(isFinite);
+    const average = values.length ? PE_round2_(PE_mean_(values)) : '';
+    return {
+      activityId: a.activityId,
+      academicYear: a.academicYear,
+      activityName: a.activityName,
+      activityDate: a.activityDate,
+      responseCount: rows.length,
+      average: average,
+      sd: values.length ? PE_round2_(PE_sd_(values)) : '',
+      level: values.length ? PE_level_(average) : 'ยังไม่มีข้อมูล'
+    };
+  });
+
+  return {
+    ok: true,
+    status: 'PASS',
+    academicYear: academicYear,
+    activityId: activityId,
+    summaryCount: summaries.length,
+    responseCount: responses.length,
+    summaries: summaries,
+    itemStats: activityId ? PE_itemStats_(activityId, responses) : []
+  };
+}
+
+function parentGetIndividualReport(input) {
+  const i = input || {};
+  const academicYear = PE_clean_(i.academicYear || '');
+  const studentId = PE_clean_(i.studentId || '');
+  const studentName = PE_clean_(i.studentName || '');
+
+  if (!academicYear) throw Error('ต้องระบุปีการศึกษา');
+  if (!studentId && !studentName) throw Error('ต้องระบุรหัสหรือชื่อนักเรียน');
+
+  let responses = PE_read_(PE_CONFIG.SHEETS.RESPONSES)
+    .filter(r => String(r.academicYear) === academicYear);
+
+  if (studentId) responses = responses.filter(r => String(r.studentId) === studentId);
+  if (studentName) responses = responses.filter(r => String(r.studentName || '').includes(studentName));
+
+  const activityMap = {};
+  PE_read_(PE_CONFIG.SHEETS.ACTIVITIES).forEach(a => activityMap[a.activityId] = a);
+
+  const details = responses.map(r => {
+    let scores = [];
+    try { scores = JSON.parse(r.scoresJson || '[]'); } catch (err) { scores = []; }
+
+    const items = PE_items_(r.activityId);
+    const itemDetails = items.map((item, index) => {
+      const score = Number(scores[index]);
+      const valid = isFinite(score) && score >= 1 && score <= 5;
+      return {
+        itemNo: Number(item.itemNo),
+        itemText: item.itemText,
+        score: valid ? score : '',
+        level: valid ? PE_level_(score) : 'ไม่มีคะแนน'
+      };
+    });
+
+    const activity = activityMap[r.activityId] || {};
+    return {
+      responseId: r.responseId,
+      timestamp: r.timestamp,
+      activityId: r.activityId,
+      activityName: activity.activityName || '',
+      activityDate: activity.activityDate || '',
+      studentId: r.studentId,
+      studentName: r.studentName,
+      parentName: r.parentName,
+      relationship: r.relationship,
+      average: Number(r.average),
+      sd: Number(r.sd),
+      level: r.level,
+      comments: r.comments,
+      qaStatus: r.qaStatus,
+      itemCount: items.length,
+      itemDetails: itemDetails
+    };
+  });
+
+  const averages = details.map(d => Number(d.average)).filter(isFinite);
+  const overallAverage = averages.length ? PE_round2_(PE_mean_(averages)) : '';
+
+  return {
+    ok: true,
+    status: details.length ? 'PASS' : 'REVIEW',
+    academicYear: academicYear,
+    studentId: studentId,
+    studentName: studentName,
+    responseCount: details.length,
+    overallAverage: overallAverage,
+    overallSd: averages.length ? PE_round2_(PE_sd_(averages)) : '',
+    overallLevel: averages.length ? PE_level_(overallAverage) : 'ไม่พบข้อมูล',
+    details: details
+  };
+}
+
+function parentExportActivityPdf(input) {
+  const activityId = PE_clean_(input && input.activityId || '');
+  const activity = PE_activity_(activityId);
+  if (!activityId) throw Error('ต้องระบุ activityId');
+  if (!activity) throw Error('ไม่พบกิจกรรม');
+
+  const report = parentGetDashboard({
+    academicYear: activity.academicYear,
+    activityId: activityId
+  });
+  const summary = report.summaries[0] || {};
+
+  const doc = DocumentApp.create('รายงานผู้ปกครอง_' + activity.academicYear + '_' + activity.activityName);
+  const body = doc.getBody();
+  body.appendParagraph('รายงานแปลผลการประเมินผู้ปกครอง วิทยาลัยพยาบาลทหารอากาศ')
+    .setHeading(DocumentApp.ParagraphHeading.HEADING1);
+  body.appendParagraph('ปีการศึกษา: ' + activity.academicYear);
+  body.appendParagraph('กิจกรรม: ' + activity.activityName);
+  body.appendParagraph('วันที่กิจกรรม: ' + (activity.activityDate || '-'));
+  body.appendParagraph('จำนวนผู้ตอบ: ' + (summary.responseCount || 0));
+  body.appendParagraph('ค่าเฉลี่ยรวม: ' + (summary.average === '' ? '-' : summary.average));
+  body.appendParagraph('S.D.: ' + (summary.sd === '' ? '-' : summary.sd));
+  body.appendParagraph('ระดับ: ' + (summary.level || '-'));
+  body.appendParagraph('ผลรายข้อ').setHeading(DocumentApp.ParagraphHeading.HEADING2);
+
+  const table = [['ข้อ', 'รายการประเมิน', 'n', 'ค่าเฉลี่ย', 'S.D.', 'แปลผล']];
+  report.itemStats.forEach(x => table.push([
+    String(x.itemNo), String(x.itemText), String(x.count),
+    String(x.average), String(x.sd), String(x.level)
+  ]));
+  body.appendTable(table);
+  body.appendParagraph('หมายเหตุ: ใช้ข้อความคำถามจริงจาก PE_Item_Dictionary');
+  doc.saveAndClose();
+
+  const blob = DriveApp.getFileById(doc.getId())
+    .getAs(MimeType.PDF)
+    .setName('รายงานแปลผล_' + PE_safe_(activity.academicYear + '_' + activity.activityName) + '.pdf');
+  const file = PE_folder_(PE_CONFIG.PDF_FOLDER_NAME).createFile(blob);
+  DriveApp.getFileById(doc.getId()).setTrashed(true);
+
+  PE_logQa_('exportActivityPdf', 'PASS', 'Export activity PDF complete', {
+    activityId: activityId,
+    pdfUrl: file.getUrl()
+  });
+
+  return { ok: true, status: 'PASS', activityId: activityId, pdfUrl: file.getUrl(), fileId: file.getId() };
+}
+
+function parentExportIndividualPdf(input) {
+  const report = parentGetIndividualReport(input || {});
+  if (!report.details.length) throw Error('ไม่พบข้อมูลรายบุคคลสำหรับสร้าง PDF');
+
+  const first = report.details[0];
+  const displayName = first.studentName || report.studentName || report.studentId || 'ไม่ระบุชื่อ';
+  const doc = DocumentApp.create('รายงานรายบุคคล_' + report.academicYear + '_' + displayName);
+  const body = doc.getBody();
+
+  body.appendParagraph('รายงานแปลผลการประเมินผู้ปกครองรายบุคคล')
+    .setHeading(DocumentApp.ParagraphHeading.HEADING1);
+  body.appendParagraph('วิทยาลัยพยาบาลทหารอากาศ กรมแพทย์ทหารอากาศ');
+  body.appendParagraph('ปีการศึกษา: ' + report.academicYear);
+  body.appendParagraph('รหัสนักเรียน: ' + (first.studentId || '-'));
+  body.appendParagraph('ชื่อ-สกุลนักเรียน: ' + (first.studentName || '-'));
+  body.appendParagraph('ค่าเฉลี่ยรวมทุกกิจกรรม: ' + report.overallAverage);
+  body.appendParagraph('S.D.: ' + report.overallSd);
+  body.appendParagraph('ระดับภาพรวม: ' + report.overallLevel);
+
+  report.details.forEach((detail, index) => {
+    body.appendParagraph((index + 1) + '. ' + detail.activityName)
+      .setHeading(DocumentApp.ParagraphHeading.HEADING2);
+    body.appendParagraph('วันที่กิจกรรม: ' + (detail.activityDate || '-'));
+    body.appendParagraph('ผู้ปกครอง: ' + (detail.parentName || '-') + ' (' + (detail.relationship || '-') + ')');
+    body.appendParagraph('ค่าเฉลี่ย: ' + detail.average + ' | S.D.: ' + detail.sd + ' | ระดับ: ' + detail.level);
+
+    const table = [['ข้อ', 'รายการประเมิน', 'คะแนน', 'แปลผล']];
+    detail.itemDetails.forEach(item => table.push([
+      String(item.itemNo), String(item.itemText), String(item.score), String(item.level)
+    ]));
+    body.appendTable(table);
+    if (detail.comments) body.appendParagraph('ข้อเสนอแนะ: ' + detail.comments);
+  });
+
+  body.appendParagraph('หมายเหตุ: รายงานนี้แสดงคะแนนรายข้อจากข้อความคำถามจริงใน PE_Item_Dictionary');
+  doc.saveAndClose();
+
+  const blob = DriveApp.getFileById(doc.getId())
+    .getAs(MimeType.PDF)
+    .setName('รายงานรายบุคคล_' + PE_safe_(report.academicYear + '_' + displayName) + '.pdf');
+  const file = PE_folder_(PE_CONFIG.PDF_FOLDER_NAME).createFile(blob);
+  DriveApp.getFileById(doc.getId()).setTrashed(true);
+
+  PE_logQa_('exportIndividualPdf', 'PASS', 'Export individual PDF complete', {
+    academicYear: report.academicYear,
+    studentId: first.studentId,
+    studentName: first.studentName,
+    pdfUrl: file.getUrl()
+  });
+
+  return {
+    ok: true,
+    status: 'PASS',
+    academicYear: report.academicYear,
+    studentId: first.studentId,
+    studentName: first.studentName,
+    pdfUrl: file.getUrl(),
+    fileId: file.getId()
+  };
+}
+
+function PE_itemStats_(activityId, responses) {
+  return PE_items_(activityId).map((item, index) => {
+    const values = responses
+      .filter(r => String(r.activityId) === String(activityId))
+      .map(r => {
+        try { return Number(JSON.parse(r.scoresJson || '[]')[index]); }
+        catch (err) { return NaN; }
+      })
+      .filter(n => isFinite(n) && n >= 1 && n <= 5);
+
+    const average = values.length ? PE_round2_(PE_mean_(values)) : '';
+    return {
+      itemNo: Number(item.itemNo),
+      itemText: item.itemText,
+      count: values.length,
+      average: average,
+      sd: values.length ? PE_round2_(PE_sd_(values)) : '',
+      level: values.length ? PE_level_(average) : 'ยังไม่มีข้อมูล'
+    };
+  });
+}
