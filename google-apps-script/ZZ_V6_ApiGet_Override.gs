@@ -2,6 +2,7 @@
  * RTAFNC v6 API route override
  * Default page: Modern Parent Evaluation dashboard for แผนกปกครอง วพอ.พอ.
  * Legacy direct upload page: ?mode=upload
+ * Parent admin operations are intentionally blocked from GET/JSONP routes.
  */
 
 function doGet(e) {
@@ -31,18 +32,29 @@ function apiGet_(p) {
   let result;
   try {
     const action = String(p.action || 'health').toLowerCase();
-    if (action === 'healthv6') result = getHealthV6_();
+    const blockedParentAdminActions = [
+      'parentsetup',
+      'parentdiagnostic',
+      'parentdashboard',
+      'parentindividual',
+      'parentexportpdf',
+      'parentexportindividualpdf'
+    ];
+
+    if (blockedParentAdminActions.indexOf(action) >= 0) {
+      result = {
+        ok: false,
+        status: 'ERROR',
+        code: 'ADMIN_GET_BLOCKED',
+        action: action,
+        error: 'เมนูผู้ดูแลต้องเรียกจากหน้า Web App ผ่าน google.script.run เท่านั้น ห้ามส่ง Admin Key ใน URL'
+      };
+    } else if (action === 'healthv6') result = getHealthV6_();
     else if (action === 'selftestv6') result = selfTestV6_();
-    else if (action === 'parenthealth') result = parentHealth({ adminKey: p.adminKey || '' });
-    else if (action === 'parentsetup') result = parentSetup({ adminKey: p.adminKey || '' });
+    else if (action === 'parenthealth') result = parentHealth({});
     else if (action === 'parentselftest') result = parentSelfTest();
-    else if (action === 'parentdiagnostic') result = parentDiagnostic({ adminKey: p.adminKey || '' });
     else if (action === 'parentactivities') result = parentListActivities({ academicYear: p.academicYear || '' });
     else if (action === 'parentitems') result = parentGetItems({ activityId: p.activityId || '' });
-    else if (action === 'parentdashboard') result = parentGetDashboard({ adminKey: p.adminKey || '', academicYear: p.academicYear || '', activityId: p.activityId || '' });
-    else if (action === 'parentindividual') result = parentGetIndividualReport({ adminKey: p.adminKey || '', academicYear: p.academicYear || '', studentId: p.studentId || '', studentName: p.studentName || '' });
-    else if (action === 'parentexportpdf') result = parentExportActivityPdf({ adminKey: p.adminKey || '', activityId: p.activityId || '' });
-    else if (action === 'parentexportindividualpdf') result = parentExportIndividualPdf({ adminKey: p.adminKey || '', academicYear: p.academicYear || '', studentId: p.studentId || '', studentName: p.studentName || '' });
     else if (action === 'pokkronghealth') result = pokkrongHealth();
     else if (action === 'health') result = getHealth_();
     else if (action === 'list') result = { ok: true, files: listPendingFiles() };
@@ -61,7 +73,12 @@ function apiGet_(p) {
     else if (action === 'selftest') result = selfTest_();
     else result = getHealth_();
   } catch (err) {
-    result = { ok: false, action: (p && p.action) || '', error: String(err && err.stack ? err.stack : err) };
+    result = {
+      ok: false,
+      status: 'ERROR',
+      action: (p && p.action) || '',
+      error: String(err && err.stack ? err.stack : err)
+    };
   }
   return jsonp_(result, p.callback);
 }
