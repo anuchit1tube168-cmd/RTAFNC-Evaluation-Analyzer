@@ -1,97 +1,402 @@
 <script>
-let items=[];
-const $=id=>document.getElementById(id);
-const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const adminKey=()=>($('adminkey')?.value||'').trim();
-const viewMeta={response:['ทำแบบประเมินผู้ปกครอง','เลือกกิจกรรมและให้คะแนนตามความเป็นจริง'],setup:['ตั้งค่าระบบและผู้ดูแล','ตรวจสถานะฐานข้อมูลและความพร้อมของระบบ'],activity:['สร้างกิจกรรมประเมิน','กำหนดปีการศึกษาและข้อความคำถามจริง'],import:['นำเข้าข้อมูลจาก Google Sheet','แปลงข้อมูลเดิมเข้าสู่ระบบอย่างเป็นขั้นตอน'],report:['รายงานและการวิเคราะห์','สรุปรายกิจกรรม รายบุคคล และส่งออก PDF']};
+let items = [];
+const $ = id => document.getElementById(id);
+const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, char => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[char]));
+const adminKey = () => ($('adminkey')?.value || '').trim();
+const viewMeta = {
+  response: ['ทำแบบประเมินผู้ปกครอง', 'เลือกกิจกรรมและให้คะแนนตามความเป็นจริง'],
+  setup: ['ตั้งค่าระบบและผู้ดูแล', 'ตรวจสถานะฐานข้อมูลและความพร้อมของระบบ'],
+  activity: ['สร้างกิจกรรมประเมิน', 'กำหนดปีการศึกษาและข้อความคำถามจริง'],
+  import: ['นำเข้าข้อมูลจาก Google Sheet', 'แปลงข้อมูลเดิมเข้าสู่ระบบอย่างมีหลักฐาน'],
+  report: ['รายงานและการวิเคราะห์', 'สรุปรายกิจกรรม รายบุคคล และส่งออก PDF']
+};
 
-function tab(id,button){
-  document.querySelectorAll('.pane').forEach(x=>x.classList.add('hidden'));
+function tab(id) {
+  document.querySelectorAll('.pane').forEach(element => element.classList.add('hidden'));
   $(id)?.classList.remove('hidden');
-  document.querySelectorAll('.nav-btn').forEach(x=>x.classList.toggle('active',x.dataset.view===id));
-  const meta=viewMeta[id]||['ระบบแปลผลการประเมิน','แผนกปกครอง วพอ.พอ.'];
-  $('pageHeading').textContent=meta[0];$('pageSubheading').textContent=meta[1];
-  window.scrollTo({top:0,behavior:'smooth'});
-}
-function setLoading(on,text){$('loading').classList.toggle('show',!!on);$('loadingText').textContent=text||'กำลังประมวลผล...'}
-function toast(message,type=''){const el=$('toast');el.textContent=message;el.className='toast show '+type;clearTimeout(window.__toastTimer);window.__toastTimer=setTimeout(()=>el.className='toast',3000)}
-function setStatus(status,label){const s=status||'REVIEW';$('topStatus').className='system-chip '+s;$('topStatus').querySelector('span').textContent=label||s;$('statusOrb').className='status-orb '+s;$('badge').textContent=s;$('state').textContent=label||'พร้อมใช้งาน'}
-function show(x){$('out').textContent=JSON.stringify(x,null,2);const status=x&&x.status?x.status:'REVIEW';setStatus(status,x?.version||x?.message||status);if(status==='PASS')toast('ดำเนินการสำเร็จ','success');else if(status==='ERROR')toast(x?.error||'เกิดข้อผิดพลาด','error')}
-function fail(e){setLoading(false);const message=String(e&&e.message?e.message:e);show({ok:false,status:'ERROR',error:message})}
-function callServer(name,args,onSuccess,loadingText){setLoading(true,loadingText);const runner=google.script.run.withFailureHandler(fail).withSuccessHandler(r=>{setLoading(false);show(r);if(onSuccess)onSuccess(r)});runner[name](args||{})}
-function rememberAdminKey(){sessionStorage.setItem('peAdminKey',$('adminkey').value||'');updateSecureState()}
-function updateSecureState(){const ready=adminKey().length>=8;$('secureDot').classList.toggle('ready',ready);$('secureText').textContent=ready?'โหมดผู้ดูแลพร้อม':'โหมดผู้ปกครอง'}
-function togglePassword(){const input=$('adminkey');input.type=input.type==='password'?'text':'password';$('eyeBtn').textContent=input.type==='password'?'◉':'◌'}
-
-function setup(){callServer('parentSetup',{adminKey:adminKey()},r=>{if(r.status==='PASS')updateSecureState()},'กำลังสร้างฐานข้อมูล...')}
-function health(){callServer('parentHealth',{adminKey:adminKey()},null,'กำลังตรวจสถานะ...')}
-function diagnostic(){callServer('parentDiagnostic',{adminKey:adminKey()},renderDiagnostic,'กำลังตรวจระบบทุกส่วน...')}
-function selftest(){callServer('parentSelfTest',{},renderDiagnostic,'กำลังทดสอบฟังก์ชัน...')}
-function renderDiagnostic(r){const box=$('diagnosticBox');if(!box)return;const checks=r.checks||[];box.innerHTML=checks.length?checks.map(c=>`<div class="mini-step"><b>${c.pass?'✓':'!'} ${esc(c.name)}</b><span>${esc(c.detail||'')}</span></div>`).join(''):'<div class="mini-step"><b>ไม่มีผลตรวจ</b></div>'}
-
-function createActivity(){
-  const payload={adminKey:adminKey(),academicYear:$('ay').value,activityName:$('an').value,activityDate:$('ad').value,itemsText:$('ai').value};
-  if(!payload.academicYear||!payload.activityName||!payload.itemsText.trim())return toast('กรุณากรอกปี ชื่อกิจกรรม และข้อคำถาม','error');
-  callServer('parentCreateActivity',payload,r=>{if(r.status==='PASS'){toast('สร้างกิจกรรมแล้ว','success');$('an').value='';$('ai').value=''}},'กำลังสร้างกิจกรรม...');
+  document.querySelectorAll('.nav-btn').forEach(element => {
+    element.classList.toggle('active', element.dataset.view === id);
+  });
+  const meta = viewMeta[id] || ['ระบบแปลผลการประเมิน', 'แผนกปกครอง วพอ.พอ.'];
+  $('pageHeading').textContent = meta[0];
+  $('pageSubheading').textContent = meta[1];
+  if (id === 'report') loadReportActivities(false);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function loadActivities(){
-  const year=$('ry').value;
-  callServer('parentListActivities',{academicYear:year},r=>{
-    const sel=$('sel');sel.innerHTML='<option value="">เลือกกิจกรรม</option>';
-    (r.activities||[]).forEach(a=>{const o=document.createElement('option');o.value=a.activityId;o.textContent=`${a.academicYear} • ${a.activityName}`;sel.appendChild(o)});
-    $('activityCount').textContent=String(r.count||0);
-    items=[];renderScores();
-  },'กำลังโหลดกิจกรรม...');
-}
-function loadItems(){
-  const activityId=$('sel').value;
-  if(!activityId){items=[];renderScores();return}
-  callServer('parentGetItems',{activityId},r=>{items=(r.items||[]).map(x=>({...x,score:''}));renderScores();$('itemCount').textContent=String(items.length)},'กำลังโหลดข้อคำถาม...');
-}
-function renderScores(){
-  const box=$('scores');
-  if(!items.length){box.innerHTML='<div class="empty"><div class="empty-icon">✦</div><strong>ยังไม่มีข้อคำถาม</strong><span>เลือกปีการศึกษาและกิจกรรมก่อนเริ่มประเมิน</span></div>';return}
-  box.innerHTML=items.map((it,i)=>`<article class="score-card"><div class="score-head"><div class="score-no">${esc(it.itemNo)}</div><div class="score-text">${esc(it.itemText)}</div></div><div class="rating">${[1,2,3,4,5].map(n=>`<button type="button" class="rate-btn" data-index="${i}" data-score="${n}" onclick="selectScore(${i},${n},this)">${n}</button>`).join('')}</div></article>`).join('');
-}
-function selectScore(index,score,button){items[index].score=score;button.parentElement.querySelectorAll('.rate-btn').forEach(x=>x.classList.toggle('selected',Number(x.dataset.score)===score));updateProgress()}
-function updateProgress(){const answered=items.filter(x=>x.score!=='').length;$('answeredCount').textContent=String(answered);$('progressText').textContent=items.length?`${answered}/${items.length} ข้อ`:'0/0 ข้อ';$('progressBar').style.width=items.length?`${answered/items.length*100}%`:'0%'}
-function saveResponse(){
-  if(!$('sel').value)return toast('กรุณาเลือกกิจกรรม','error');
-  if(!items.length)return toast('กิจกรรมนี้ไม่มีข้อคำถาม','error');
-  const missing=items.filter(x=>x.score==='').length;if(missing)return toast(`กรุณาตอบให้ครบ ยังขาด ${missing} ข้อ`,'error');
-  if(!$('sname').value.trim()||!$('pname').value.trim())return toast('กรุณากรอกชื่อนักเรียนและผู้ปกครอง','error');
-  const payload={activityId:$('sel').value,studentId:$('sid').value,studentName:$('sname').value,parentName:$('pname').value,relationship:$('rel').value,scores:items.map(x=>x.score),comments:$('comment').value};
-  callServer('parentSaveResponse',payload,r=>{if(r.status==='PASS'){toast('บันทึกแบบประเมินเรียบร้อย','success');items.forEach(x=>x.score='');renderScores();updateProgress();$('comment').value=''}},'กำลังบันทึกแบบประเมิน...');
+function setLoading(on, text) {
+  $('loading').classList.toggle('show', !!on);
+  $('loadingText').textContent = text || 'กำลังประมวลผล...';
 }
 
-function importSheet(){
-  const payload={adminKey:adminKey(),sourceSpreadsheetId:$('src').value,sourceSheetName:$('srcsheet').value,academicYear:$('srcyear').value,activityName:$('srcact').value};
-  if(!payload.sourceSpreadsheetId||!payload.academicYear||!payload.activityName)return toast('กรุณากรอกข้อมูลนำเข้าให้ครบ','error');
-  callServer('parentImportWideSheet',payload,r=>{if(r.status==='PASS')renderImportSummary(r)},'กำลังนำเข้าและตรวจสอบข้อมูล...');
+function toast(message, type = '') {
+  const element = $('toast');
+  element.textContent = message;
+  element.className = 'toast show ' + type;
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(() => { element.className = 'toast'; }, 3500);
 }
-function renderImportSummary(r){$('importSummary').innerHTML=`<div class="kpis"><div class="kpi"><span>กิจกรรม</span><strong>1</strong><em>${esc(r.activityName||'')}</em></div><div class="kpi"><span>ข้อประเมิน</span><strong>${esc(r.itemCount||0)}</strong><em>ข้อ</em></div><div class="kpi"><span>นำเข้าสำเร็จ</span><strong>${esc(r.importedResponses||0)}</strong><em>รายการ</em></div><div class="kpi"><span>ต้องตรวจสอบ</span><strong>${esc(r.reviewResponses||0)}</strong><em>รายการ</em></div></div>`}
 
-function dashboard(){
-  callServer('parentGetDashboard',{adminKey:adminKey(),academicYear:$('repyear').value,activityId:$('repid').value},renderDashboard,'กำลังวิเคราะห์ข้อมูล...');
+function setStatus(status, label) {
+  const value = status || 'REVIEW';
+  $('topStatus').className = 'system-chip ' + value;
+  $('topStatus').querySelector('span').textContent = label || value;
+  $('statusOrb').className = 'status-orb ' + value;
+  $('badge').textContent = value;
+  $('state').textContent = label || 'พร้อมใช้งาน';
 }
-function renderDashboard(r){
-  const summaries=r.summaries||[];const avg=summaries.length?Number(summaries[0].average||0):0;
-  $('reportKpis').innerHTML=`<div class="kpi"><span>กิจกรรม</span><strong>${esc(r.summaryCount||0)}</strong><em>รายการ</em></div><div class="kpi"><span>ผู้ตอบทั้งหมด</span><strong>${esc(r.responseCount||0)}</strong><em>คน</em></div><div class="kpi"><span>ค่าเฉลี่ย</span><strong>${avg?avg.toFixed(2):'-'}</strong><em>จาก 5.00</em></div><div class="kpi"><span>ระดับภาพรวม</span><strong style="font-size:15px">${esc(summaries[0]?.level||'-')}</strong><em>ผลการประเมิน</em></div>`;
-  let h='<div class="table-wrap"><table><thead><tr><th>กิจกรรม</th><th>ปี</th><th>ผู้ตอบ</th><th>เฉลี่ย</th><th>S.D.</th><th>ระดับ</th></tr></thead><tbody>';
-  summaries.forEach(x=>h+=`<tr><td>${esc(x.activityName)}</td><td>${esc(x.academicYear)}</td><td>${esc(x.responseCount)}</td><td>${esc(x.average)}</td><td>${esc(x.sd)}</td><td><span class="level-pill">${esc(x.level)}</span></td></tr>`);h+='</tbody></table></div>';
-  if(r.itemStats?.length){h+='<h4 style="margin:20px 0 10px">ผลรายข้อ</h4><div class="table-wrap"><table><thead><tr><th>ข้อ</th><th>รายการประเมิน</th><th>n</th><th>เฉลี่ย</th><th>S.D.</th><th>ระดับ</th></tr></thead><tbody>';r.itemStats.forEach(x=>h+=`<tr><td>${esc(x.itemNo)}</td><td>${esc(x.itemText)}</td><td>${esc(x.count)}</td><td>${esc(x.average)}</td><td>${esc(x.sd)}</td><td><span class="level-pill">${esc(x.level)}</span></td></tr>`);h+='</tbody></table></div>'}
-  $('tablebox').innerHTML=h||'<div class="empty"><strong>ไม่พบข้อมูล</strong></div>';
-}
-function individual(){callServer('parentGetIndividualReport',{adminKey:adminKey(),academicYear:$('repyear').value,studentId:$('iid').value,studentName:$('iname').value},renderIndividual,'กำลังค้นหารายบุคคล...')}
-function renderIndividual(r){
-  let h=`<div class="kpis"><div class="kpi"><span>จำนวนกิจกรรม</span><strong>${esc(r.responseCount||0)}</strong><em>กิจกรรม</em></div><div class="kpi"><span>ค่าเฉลี่ยรวม</span><strong>${esc(r.overallAverage||'-')}</strong><em>จาก 5.00</em></div><div class="kpi"><span>S.D.</span><strong>${esc(r.overallSd||'-')}</strong><em>ความกระจาย</em></div><div class="kpi"><span>ระดับภาพรวม</span><strong style="font-size:15px">${esc(r.overallLevel||'-')}</strong><em>ผลรายบุคคล</em></div></div>`;
-  (r.details||[]).forEach((x,i)=>{h+=`<article class="activity-block"><h3>${i+1}. ${esc(x.activityName)}</h3><div class="activity-meta"><span>ผู้ปกครอง: ${esc(x.parentName||'-')}</span><span>${esc(x.relationship||'-')}</span><span>เฉลี่ย ${esc(x.average)}</span><span>${esc(x.level)}</span></div><div class="table-wrap"><table><thead><tr><th>ข้อ</th><th>รายการประเมิน</th><th>คะแนน</th><th>แปลผล</th></tr></thead><tbody>`;(x.itemDetails||[]).forEach(it=>h+=`<tr><td>${esc(it.itemNo)}</td><td>${esc(it.itemText)}</td><td>${esc(it.score)}</td><td><span class="level-pill">${esc(it.level)}</span></td></tr>`);h+='</tbody></table></div>';if(x.comments)h+=`<div class="callout" style="margin-top:12px"><b>ข้อเสนอแนะ:</b> ${esc(x.comments)}</div>`;h+='</article>'});$('tablebox').innerHTML=h;
-}
-function pdf(){callServer('parentExportActivityPdf',{adminKey:adminKey(),activityId:$('repid').value},r=>{if(r.pdfUrl)window.open(r.pdfUrl,'_blank')},'กำลังสร้าง PDF รายกิจกรรม...')}
-function individualPdf(){callServer('parentExportIndividualPdf',{adminKey:adminKey(),academicYear:$('repyear').value,studentId:$('iid').value,studentName:$('iname').value},r=>{if(r.pdfUrl)window.open(r.pdfUrl,'_blank')},'กำลังสร้าง PDF รายบุคคล...')}
 
-window.addEventListener('DOMContentLoaded',()=>{
-  $('adminkey').value=sessionStorage.getItem('peAdminKey')||'';updateSecureState();renderScores();updateProgress();tab('response');
+function show(result) {
+  $('out').textContent = JSON.stringify(result, null, 2);
+  const status = result?.status || (result?.ok === false ? 'ERROR' : 'REVIEW');
+  setStatus(status, result?.version || result?.message || status);
+  if (status === 'PASS') toast('ดำเนินการสำเร็จ', 'success');
+  if (status === 'REVIEW') toast(result?.message || 'มีข้อมูลที่ต้องตรวจสอบ', 'warning');
+  if (status === 'ERROR') toast(result?.error || result?.message || 'เกิดข้อผิดพลาด', 'error');
+}
+
+function fail(error) {
+  setLoading(false);
+  const message = String(error?.message || error);
+  show({ ok: false, status: 'ERROR', error: message });
+}
+
+function callServer(name, args, onSuccess, loadingText) {
+  setLoading(true, loadingText);
+  const runner = google.script.run
+    .withFailureHandler(fail)
+    .withSuccessHandler(result => {
+      setLoading(false);
+      show(result);
+      if (result?.ok === false) return;
+      if (onSuccess) onSuccess(result);
+    });
+  runner[name](args || {});
+}
+
+function rememberAdminKey() {
+  sessionStorage.setItem('peAdminKey', $('adminkey').value || '');
+  updateSecureState();
+}
+
+function updateSecureState() {
+  const ready = adminKey().length >= 8;
+  $('secureDot').classList.toggle('ready', ready);
+  $('secureText').textContent = ready ? 'โหมดผู้ดูแลพร้อม' : 'โหมดผู้ปกครอง';
+}
+
+function togglePassword() {
+  const input = $('adminkey');
+  input.type = input.type === 'password' ? 'text' : 'password';
+  $('eyeBtn').textContent = input.type === 'password' ? '◉' : '◌';
+}
+
+function setup() {
+  callServer('parentSetup', { adminKey: adminKey() }, result => {
+    if (result.status === 'PASS') updateSecureState();
+  }, 'กำลังสร้างและตรวจฐานข้อมูล...');
+}
+
+function health() {
+  callServer('parentHealth', { adminKey: adminKey() }, null, 'กำลังตรวจสถานะ...');
+}
+
+function diagnostic() {
+  callServer('parentDiagnostic', { adminKey: adminKey() }, renderDiagnostic, 'กำลังตรวจระบบทุกส่วน...');
+}
+
+function selftest() {
+  callServer('parentSelfTest', {}, renderDiagnostic, 'กำลังทดสอบฟังก์ชัน...');
+}
+
+function renderDiagnostic(result) {
+  const box = $('diagnosticBox');
+  if (!box) return;
+  const checks = result.checks || [];
+  box.innerHTML = checks.length
+    ? checks.map(check => `<div class="mini-step"><b>${check.pass ? '✓' : '!'} ${esc(check.name)}</b><span>${esc(check.detail || '')}</span></div>`).join('')
+    : '<div class="mini-step"><b>ไม่มีผลตรวจ</b></div>';
+}
+
+function createActivity() {
+  const payload = {
+    adminKey: adminKey(),
+    academicYear: $('ay').value,
+    activityName: $('an').value,
+    activityDate: $('ad').value,
+    itemsText: $('ai').value
+  };
+  if (!/^\d{4}$/.test(payload.academicYear)) return toast('ปีการศึกษาต้องเป็นตัวเลข 4 หลัก', 'error');
+  if (!payload.activityName.trim() || !payload.itemsText.trim()) {
+    return toast('กรุณากรอกชื่อกิจกรรมและข้อคำถามจริง', 'error');
+  }
+  callServer('parentCreateActivity', payload, result => {
+    if (result.status === 'PASS') {
+      $('an').value = '';
+      $('ai').value = '';
+      toast('สร้างกิจกรรมและ Item Dictionary แล้ว', 'success');
+    }
+  }, 'กำลังสร้างกิจกรรม...');
+}
+
+function populateActivitySelect(select, activities, emptyLabel) {
+  select.innerHTML = `<option value="">${esc(emptyLabel)}</option>`;
+  (activities || []).forEach(activity => {
+    const option = document.createElement('option');
+    option.value = activity.activityId;
+    option.textContent = `${activity.academicYear} • ${activity.activityName}`;
+    select.appendChild(option);
+  });
+}
+
+function loadActivities() {
+  const year = $('ry').value;
+  if (!/^\d{4}$/.test(year)) return toast('ปีการศึกษาต้องเป็นตัวเลข 4 หลัก', 'error');
+  callServer('parentListActivities', { academicYear: year }, result => {
+    populateActivitySelect($('sel'), result.activities, 'เลือกกิจกรรม');
+    $('activityCount').textContent = String(result.count || 0);
+    items = [];
+    renderScores();
+    updateProgress();
+  }, 'กำลังโหลดกิจกรรม...');
+}
+
+function loadItems() {
+  const activityId = $('sel').value;
+  if (!activityId) {
+    items = [];
+    renderScores();
+    updateProgress();
+    return;
+  }
+  callServer('parentGetItems', { activityId }, result => {
+    items = (result.items || []).map(item => ({ ...item, score: '' }));
+    renderScores();
+    $('itemCount').textContent = String(items.length);
+    updateProgress();
+  }, 'กำลังโหลดข้อคำถาม...');
+}
+
+function renderScores() {
+  const box = $('scores');
+  if (!items.length) {
+    box.innerHTML = '<div class="empty"><div class="empty-icon">✦</div><strong>ยังไม่มีข้อคำถาม</strong><span>เลือกปีการศึกษาและกิจกรรมก่อนเริ่มประเมิน</span></div>';
+    $('itemCount').textContent = '0';
+    return;
+  }
+  box.innerHTML = items.map((item, index) => `
+    <article class="score-card">
+      <div class="score-head"><div class="score-no">${esc(item.itemNo)}</div><div class="score-text">${esc(item.itemText)}</div></div>
+      <div class="rating">${[1, 2, 3, 4, 5].map(score => `<button type="button" class="rate-btn" data-index="${index}" data-score="${score}" onclick="selectScore(${index},${score},this)" aria-label="ให้คะแนน ${score}">${score}</button>`).join('')}</div>
+    </article>`).join('');
+}
+
+function selectScore(index, score, button) {
+  items[index].score = score;
+  button.parentElement.querySelectorAll('.rate-btn').forEach(element => {
+    element.classList.toggle('selected', Number(element.dataset.score) === score);
+  });
+  updateProgress();
+}
+
+function updateProgress() {
+  const answered = items.filter(item => item.score !== '').length;
+  $('answeredCount').textContent = String(answered);
+  $('progressText').textContent = items.length ? `${answered}/${items.length} ข้อ` : '0/0 ข้อ';
+  $('progressBar').style.width = items.length ? `${answered / items.length * 100}%` : '0%';
+}
+
+function saveResponse() {
+  if (!$('sel').value) return toast('กรุณาเลือกกิจกรรม', 'error');
+  if (!items.length) return toast('กิจกรรมนี้ไม่มีข้อคำถาม', 'error');
+  const missing = items.filter(item => item.score === '').length;
+  if (missing) return toast(`กรุณาตอบให้ครบ ยังขาด ${missing} ข้อ`, 'error');
+  if (!$('sname').value.trim() || !$('pname').value.trim()) {
+    return toast('กรุณากรอกชื่อนักเรียนและชื่อผู้ปกครอง', 'error');
+  }
+  const payload = {
+    activityId: $('sel').value,
+    studentId: $('sid').value,
+    studentName: $('sname').value,
+    parentName: $('pname').value,
+    relationship: $('rel').value,
+    scores: items.map(item => item.score),
+    comments: $('comment').value
+  };
+  callServer('parentSaveResponse', payload, result => {
+    if (result.status === 'PASS') {
+      items.forEach(item => { item.score = ''; });
+      renderScores();
+      updateProgress();
+      $('comment').value = '';
+      toast(`บันทึกแล้ว ค่าเฉลี่ย ${result.average} (${result.level})`, 'success');
+    }
+  }, 'กำลังตรวจและบันทึกแบบประเมิน...');
+}
+
+function ensureImportHeaderField() {
+  if ($('srcheader')) return;
+  const sourceSheet = $('srcsheet');
+  const sourceSheetField = sourceSheet.closest('.field');
+  const field = document.createElement('div');
+  field.className = 'field';
+  field.innerHTML = '<label>แถวหัวตาราง <small>ค่าเริ่มต้น 1</small></label><input id="srcheader" type="number" min="1" step="1" value="1">';
+  sourceSheetField.insertAdjacentElement('afterend', field);
+}
+
+function importSheet() {
+  const payload = {
+    adminKey: adminKey(),
+    sourceSpreadsheetId: $('src').value,
+    sourceSheetName: $('srcsheet').value,
+    headerRow: Number($('srcheader')?.value || 1),
+    academicYear: $('srcyear').value,
+    activityName: $('srcact').value
+  };
+  if (!payload.sourceSpreadsheetId || !/^\d{4}$/.test(payload.academicYear) || !payload.activityName.trim()) {
+    return toast('กรุณากรอก Spreadsheet ID ปีการศึกษา และชื่อกิจกรรมให้ถูกต้อง', 'error');
+  }
+  callServer('parentImportWideSheet', payload, renderImportSummary, 'กำลังตรวจ Template สร้าง fingerprint และนำเข้า...');
+}
+
+function renderImportSummary(result) {
+  $('importSummary').innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><span>Import Receipt</span><strong style="font-size:13px">${esc(result.importId || '-')}</strong><em>${esc(result.status || '')}</em></div>
+      <div class="kpi"><span>ข้อประเมิน</span><strong>${esc(result.itemCount || 0)}</strong><em>ข้อ</em></div>
+      <div class="kpi"><span>นำเข้าทั้งหมด</span><strong>${esc(result.importedResponses || 0)}</strong><em>รายการ</em></div>
+      <div class="kpi"><span>ต้องตรวจสอบ</span><strong>${esc(result.reviewResponses || 0)}</strong><em>รายการ</em></div>
+    </div>
+    <div class="callout">Fingerprint: ${esc(result.fingerprint || '-')}<br>ตัดคอลัมน์สรุป: ${esc((result.excludedColumns || []).join(', ') || 'ไม่มี')}</div>`;
+}
+
+function ensureReportActivitySelector() {
+  const oldInput = $('repid');
+  if (!oldInput || oldInput.tagName === 'SELECT') return;
+  const select = document.createElement('select');
+  select.id = 'repid';
+  select.innerHTML = '<option value="">ทุกกิจกรรม</option>';
+  oldInput.replaceWith(select);
+
+  const yearField = $('repyear').closest('.field');
+  const loadField = document.createElement('div');
+  loadField.className = 'field';
+  loadField.innerHTML = '<label>&nbsp;</label><button class="btn btn-ghost" type="button" onclick="loadReportActivities(true)">โหลดรายการกิจกรรม</button>';
+  yearField.insertAdjacentElement('afterend', loadField);
+}
+
+function loadReportActivities(showLoading = true) {
+  const year = $('repyear').value;
+  if (!/^\d{4}$/.test(year)) {
+    if (showLoading) toast('ปีการศึกษาต้องเป็นตัวเลข 4 หลัก', 'error');
+    return;
+  }
+  const populate = result => populateActivitySelect($('repid'), result.activities, 'ทุกกิจกรรม');
+  if (showLoading) {
+    callServer('parentListActivities', { academicYear: year }, populate, 'กำลังโหลดรายการกิจกรรม...');
+  } else {
+    google.script.run.withFailureHandler(fail).withSuccessHandler(populate).parentListActivities({ academicYear: year });
+  }
+}
+
+function dashboard() {
+  callServer('parentGetDashboard', {
+    adminKey: adminKey(),
+    academicYear: $('repyear').value,
+    activityId: $('repid').value
+  }, renderDashboard, 'กำลังวิเคราะห์ข้อมูลที่ผ่าน QA...');
+}
+
+function renderDashboard(result) {
+  const summaries = result.summaries || [];
+  const allAverages = summaries.map(item => Number(item.average)).filter(value => Number.isFinite(value) && value > 0);
+  const displayAverage = allAverages.length ? (allAverages.reduce((a, b) => a + b, 0) / allAverages.length).toFixed(2) : '-';
+  $('reportKpis').innerHTML = `
+    <div class="kpi"><span>กิจกรรม</span><strong>${esc(result.summaryCount || 0)}</strong><em>รายการ</em></div>
+    <div class="kpi"><span>ผ่าน QA</span><strong>${esc(result.passCount || 0)}</strong><em>คำตอบ</em></div>
+    <div class="kpi"><span>ต้องตรวจ</span><strong>${esc(result.reviewCount || 0)}</strong><em>คำตอบ</em></div>
+    <div class="kpi"><span>ค่าเฉลี่ยกิจกรรม</span><strong>${displayAverage}</strong><em>คำนวณเฉพาะ PASS</em></div>`;
+
+  if (!summaries.length) {
+    $('tablebox').innerHTML = '<div class="empty"><strong>ไม่พบข้อมูล</strong><span>ตรวจปีการศึกษาและกิจกรรม</span></div>';
+    return;
+  }
+
+  let html = '<div class="table-wrap"><table><thead><tr><th>กิจกรรม</th><th>ปี</th><th>ทั้งหมด</th><th>PASS</th><th>REVIEW</th><th>เฉลี่ย</th><th>S.D.</th><th>ระดับ</th></tr></thead><tbody>';
+  summaries.forEach(item => {
+    html += `<tr><td>${esc(item.activityName)}</td><td>${esc(item.academicYear)}</td><td>${esc(item.responseCount)}</td><td>${esc(item.passCount)}</td><td>${esc(item.reviewCount)}</td><td>${esc(item.average)}</td><td>${esc(item.sd)}</td><td><span class="level-pill">${esc(item.level)}</span></td></tr>`;
+  });
+  html += '</tbody></table></div>';
+
+  if (result.itemStats?.length) {
+    html += '<h4 style="margin:20px 0 10px">ผลรายข้อจากคำตอบที่ผ่าน QA</h4><div class="table-wrap"><table><thead><tr><th>ข้อ</th><th>รายการประเมิน</th><th>n</th><th>เฉลี่ย</th><th>S.D.</th><th>ระดับ</th></tr></thead><tbody>';
+    result.itemStats.forEach(item => {
+      html += `<tr><td>${esc(item.itemNo)}</td><td>${esc(item.itemText)}</td><td>${esc(item.count)}</td><td>${esc(item.average)}</td><td>${esc(item.sd)}</td><td><span class="level-pill">${esc(item.level)}</span></td></tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+  $('tablebox').innerHTML = html;
+}
+
+function individual() {
+  callServer('parentGetIndividualReport', {
+    adminKey: adminKey(),
+    academicYear: $('repyear').value,
+    studentId: $('iid').value,
+    studentName: $('iname').value
+  }, renderIndividual, 'กำลังค้นหารายบุคคลแบบตรงตัว...');
+}
+
+function renderIndividual(result) {
+  if (result.ambiguous) {
+    $('tablebox').innerHTML = `<div class="empty"><strong>พบชื่อกำกวม</strong><span>${esc(result.message)}</span></div>`;
+    return;
+  }
+  let html = `
+    <div class="kpis">
+      <div class="kpi"><span>กิจกรรมทั้งหมด</span><strong>${esc(result.responseCount || 0)}</strong><em>กิจกรรม</em></div>
+      <div class="kpi"><span>ผ่าน QA</span><strong>${esc(result.passCount || 0)}</strong><em>กิจกรรม</em></div>
+      <div class="kpi"><span>ต้องตรวจ</span><strong>${esc(result.reviewCount || 0)}</strong><em>กิจกรรม</em></div>
+      <div class="kpi"><span>ค่าเฉลี่ยรวม</span><strong>${esc(result.overallAverage || '-')}</strong><em>${esc(result.overallLevel || '-')}</em></div>
+    </div>`;
+  (result.details || []).forEach((detail, index) => {
+    html += `<article class="activity-block"><h3>${index + 1}. ${esc(detail.activityName)}</h3><div class="activity-meta"><span>QA: ${esc(detail.qaStatus || '-')}</span><span>ผู้ปกครอง: ${esc(detail.parentName || '-')}</span><span>${esc(detail.relationship || '-')}</span><span>เฉลี่ย ${esc(detail.average)}</span><span>${esc(detail.level)}</span></div><div class="table-wrap"><table><thead><tr><th>ข้อ</th><th>รายการประเมิน</th><th>คะแนน</th><th>แปลผล</th></tr></thead><tbody>`;
+    (detail.itemDetails || []).forEach(item => {
+      html += `<tr><td>${esc(item.itemNo)}</td><td>${esc(item.itemText)}</td><td>${esc(item.score)}</td><td><span class="level-pill">${esc(item.level)}</span></td></tr>`;
+    });
+    html += '</tbody></table></div>';
+    if (detail.comments) html += `<div class="callout" style="margin-top:12px"><b>ข้อเสนอแนะ:</b> ${esc(detail.comments)}</div>`;
+    html += '</article>';
+  });
+  $('tablebox').innerHTML = html || '<div class="empty"><strong>ไม่พบข้อมูล</strong></div>';
+}
+
+function pdf() {
+  if (!$('repid').value) return toast('กรุณาเลือกกิจกรรมก่อนสร้าง PDF', 'error');
+  callServer('parentExportActivityPdf', {
+    adminKey: adminKey(),
+    activityId: $('repid').value
+  }, result => { if (result.pdfUrl) window.open(result.pdfUrl, '_blank'); }, 'กำลังสร้าง PDF รายกิจกรรมตาม Template ราชการ...');
+}
+
+function individualPdf() {
+  callServer('parentExportIndividualPdf', {
+    adminKey: adminKey(),
+    academicYear: $('repyear').value,
+    studentId: $('iid').value,
+    studentName: $('iname').value
+  }, result => { if (result.pdfUrl) window.open(result.pdfUrl, '_blank'); }, 'กำลังสร้าง PDF รายบุคคล...');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  $('adminkey').value = sessionStorage.getItem('peAdminKey') || '';
+  ensureImportHeaderField();
+  ensureReportActivitySelector();
+  updateSecureState();
+  renderScores();
+  updateProgress();
+  tab('response');
 });
 </script>
