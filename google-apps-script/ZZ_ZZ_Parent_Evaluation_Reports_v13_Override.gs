@@ -47,13 +47,13 @@ function parentGetDashboard(input) {
       reviewCount: allRows.length - passRows.length,
       average: average,
       sd: values.length ? PE_round2_(PE_sd_(values)) : '',
-      level: values.length ? PE_level_(average) : 'ยังไม่มีข้อมูล'
+      level: values.length ? PE_level_(average) : 'ยังไม่มีข้อมูลที่ผ่าน QA'
     };
   });
 
   return {
     ok: true,
-    status: summaries.length ? 'PASS' : 'REVIEW',
+    status: summaries.length && passResponses.length ? 'PASS' : 'REVIEW',
     academicYear: academicYear,
     activityId: activityId,
     summaryCount: summaries.length,
@@ -168,7 +168,7 @@ function parentGetIndividualReport(input) {
 
   return {
     ok: true,
-    status: details.length ? 'PASS' : 'REVIEW',
+    status: passDetails.length ? 'PASS' : 'REVIEW',
     academicYear: academicYear,
     studentId: studentId,
     studentName: studentName,
