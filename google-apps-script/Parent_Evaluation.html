@@ -1,32 +1,198 @@
 <!doctype html>
 <html lang="th">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ระบบแปลผลผู้ปกครอง วพอ.พอ.</title>
-<style>
-:root{--n:#132a4a;--b:#2764a8;--bg:#f4f7fb;--line:#d8e2ef;--ok:#087f5b;--warn:#a86100;--bad:#b42318}*{box-sizing:border-box}body{margin:0;font-family:Tahoma,"TH Sarabun New",sans-serif;background:var(--bg);color:#172033}.wrap{max-width:1150px;margin:auto;padding:18px}.hero{background:linear-gradient(135deg,var(--n),var(--b));color:#fff;padding:24px;border-radius:22px;box-shadow:0 15px 35px #132a4a33}.hero h1{margin:0 0 8px;font-size:34px}.hero p{margin:0;opacity:.9}.tabs{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.tabs button,.btn{border:0;border-radius:10px;padding:11px 14px;font-weight:700;cursor:pointer}.tabs button{background:#fff;color:var(--n);border:1px solid var(--line)}.btn{background:var(--b);color:#fff}.ok{background:var(--ok)}.warn{background:var(--warn)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 8px 22px #132a4a12}.full{grid-column:1/-1}.hidden{display:none}label{display:block;font-weight:700;margin:10px 0 5px}input,textarea,select{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px}textarea{min-height:120px}.muted{color:#667085;font-size:13px}.status{display:inline-block;padding:5px 10px;border-radius:999px;font-weight:700}.PASS{background:#d8f5e8;color:var(--ok)}.REVIEW{background:#fff0cc;color:var(--warn)}.ERROR{background:#fee4e2;color:var(--bad)}pre{background:#101828;color:#d1fae5;border-radius:14px;padding:15px;white-space:pre-wrap;overflow:auto;min-height:150px}.score{display:grid;grid-template-columns:1fr 90px;gap:8px;padding:8px 0;border-bottom:1px solid #edf2f7}table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#eaf3ff}.activity-block{margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fbfdff}@media(max-width:800px){.grid{grid-template-columns:1fr}.full{grid-column:auto}.hero h1{font-size:27px}}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#071a33">
+  <title>ระบบแปลผลการประเมินผู้ปกครอง | แผนกปกครอง วพอ.พอ.</title>
+  <?!= PE_include_('Parent_Evaluation_Styles'); ?>
 </head>
-<body><main class="wrap">
-<section class="hero"><h1>ระบบแปลผลการประเมินผู้ปกครอง วพอ.พอ.</h1><p>แยกปีการศึกษา • รายกิจกรรม • รายบุคคล • ข้อคำถามจริง • Export PDF • ป้องกันเมนูผู้ดูแลด้วย Admin Key</p></section>
-<div class="tabs"><button onclick="tab('setup')">ตั้งค่า/ผู้ดูแล</button><button onclick="tab('activity')">สร้างกิจกรรม</button><button onclick="tab('response')">บันทึกแบบประเมิน</button><button onclick="tab('import')">นำเข้า Sheet</button><button onclick="tab('report')">รายงาน</button></div>
-<section id="setup" class="pane grid"><div class="card"><h2>ตั้งค่าผู้ดูแล</h2><p class="muted">ครั้งแรกให้กำหนด Admin Key อย่างน้อย 8 ตัวอักษร เก็บเป็นความลับ เมนูสร้างกิจกรรม นำเข้า และรายงานจะใช้รหัสนี้</p><label>Admin Key</label><input id="adminkey" type="password" minlength="8" autocomplete="current-password" placeholder="อย่างน้อย 8 ตัวอักษร" oninput="rememberAdminKey()"><button class="btn ok" onclick="setup()">Setup Database</button> <button class="btn" onclick="health()">Health</button> <button class="btn warn" onclick="diagnostic()">Diagnostic</button> <button class="btn" onclick="selftest()">Self Test</button></div><div class="card"><h2>สถานะ</h2><span id="badge" class="status REVIEW">WAIT</span><p id="state" class="muted">ยังไม่ได้ทดสอบ</p><p class="muted">ผู้ปกครองไม่ต้องกรอก Admin Key เพื่อบันทึกแบบประเมิน</p></div></section>
-<section id="activity" class="pane grid hidden"><div class="card full"><h2>สร้างกิจกรรม</h2><div class="grid"><div><label>ปีการศึกษา</label><input id="ay" value="2569"><label>ชื่อกิจกรรม</label><input id="an" placeholder="เช่น ประชุมผู้ปกครองประจำปี"><label>วันที่</label><input id="ad" placeholder="10 ก.ค. 2569"></div><div><label>ข้อคำถามจริง ข้อละ 1 บรรทัด</label><textarea id="ai" placeholder="1. ความเหมาะสมของกิจกรรม&#10;2. การสื่อสารของวิทยาลัยมีความชัดเจน"></textarea></div></div><button class="btn ok" onclick="createActivity()">สร้างกิจกรรม</button></div></section>
-<section id="response" class="pane grid hidden"><div class="card"><h2>ข้อมูลผู้ตอบ</h2><label>ปีการศึกษา</label><input id="ry" value="2569"><button class="btn" onclick="loadActivities()">โหลดกิจกรรม</button><label>กิจกรรม</label><select id="sel" onchange="loadItems()"></select><label>รหัสนักเรียน</label><input id="sid"><label>ชื่อ-สกุลนักเรียน</label><input id="sname"><label>ชื่อผู้ปกครอง</label><input id="pname"><label>ความสัมพันธ์</label><input id="rel"></div><div class="card"><h2>คะแนน 1–5</h2><div id="scores" class="muted">กรุณาเลือกกิจกรรม</div><label>ข้อเสนอแนะ</label><textarea id="comment"></textarea><button class="btn ok" onclick="saveResponse()">บันทึกและแปลผล</button></div></section>
-<section id="import" class="pane grid hidden"><div class="card full"><h2>นำเข้าจาก Google Sheet</h2><p class="muted">แถวแรกต้องเป็นหัวข้อจริง และคอลัมน์คะแนนเป็น 1–5</p><div class="grid"><div><label>Spreadsheet ID</label><input id="src"><label>ชื่อชีต (เว้นว่างใช้ชีตแรก)</label><input id="srcsheet"></div><div><label>ปีการศึกษา</label><input id="srcyear" value="2569"><label>ชื่อกิจกรรม</label><input id="srcact"></div></div><button class="btn warn" onclick="importSheet()">Import และแปลผล</button></div></section>
-<section id="report" class="pane grid hidden"><div class="card"><h2>รายกิจกรรม</h2><label>ปีการศึกษา</label><input id="repyear" value="2569"><label>Activity ID (เว้นว่างดูทั้งหมด)</label><input id="repid"><button class="btn" onclick="dashboard()">Dashboard</button> <button class="btn warn" onclick="pdf()">Export PDF กิจกรรม</button></div><div class="card"><h2>รายบุคคล</h2><label>รหัสนักเรียน</label><input id="iid"><label>หรือชื่อนักเรียน</label><input id="iname"><button class="btn" onclick="individual()">ดูรายบุคคล</button> <button class="btn warn" onclick="individualPdf()">Export PDF รายบุคคล</button></div><div class="card full"><h2>ตารางสรุป</h2><div id="tablebox" class="muted">ยังไม่มีรายงาน</div></div></section>
-<section class="card" style="margin-top:14px"><h2>ผลลัพธ์ระบบ</h2><pre id="out">พร้อมใช้งาน</pre></section>
-</main>
-<script>
-let items=[];const $=id=>document.getElementById(id);const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const adminKey=()=>($('adminkey').value||'').trim();function rememberAdminKey(){sessionStorage.setItem('peAdminKey',$('adminkey').value||'')}window.addEventListener('DOMContentLoaded',()=>{$('adminkey').value=sessionStorage.getItem('peAdminKey')||''});function tab(id){document.querySelectorAll('.pane').forEach(x=>x.classList.add('hidden'));$(id).classList.remove('hidden')}function show(x){$('out').textContent=JSON.stringify(x,null,2);let s=x&&x.status?x.status:'REVIEW';$('badge').className='status '+s;$('badge').textContent=s;$('state').textContent=x&&x.version?x.version:(x&&x.message?x.message:'')}function fail(e){show({ok:false,status:'ERROR',error:String(e)})}
-function setup(){google.script.run.withSuccessHandler(show).withFailureHandler(fail).parentSetup({adminKey:adminKey()})}function health(){google.script.run.withSuccessHandler(show).withFailureHandler(fail).parentHealth({adminKey:adminKey()})}function diagnostic(){google.script.run.withSuccessHandler(show).withFailureHandler(fail).parentDiagnostic({adminKey:adminKey()})}function selftest(){google.script.run.withSuccessHandler(show).withFailureHandler(fail).parentSelfTest()}
-function createActivity(){google.script.run.withSuccessHandler(show).withFailureHandler(fail).parentCreateActivity({adminKey:adminKey(),academicYear:$('ay').value,activityName:$('an').value,activityDate:$('ad').value,itemsText:$('ai').value})}
-function loadActivities(){google.script.run.withSuccessHandler(r=>{$('sel').innerHTML='';(r.activities||[]).forEach(a=>{let o=document.createElement('option');o.value=a.activityId;o.textContent=a.academicYear+' | '+a.activityName+' | '+a.activityId;$('sel').appendChild(o)});show(r);loadItems()}).withFailureHandler(fail).parentListActivities({academicYear:$('ry').value})}
-function loadItems(){if(!$('sel').value)return;google.script.run.withSuccessHandler(r=>{items=r.items||[];$('scores').innerHTML='';items.forEach((it,i)=>{let d=document.createElement('div');d.className='score';d.innerHTML='<div>'+esc(it.itemNo)+'. '+esc(it.itemText)+'</div><input id="sc'+i+'" type="number" min="1" max="5" step="1">';$('scores').appendChild(d)});show(r)}).withFailureHandler(fail).parentGetItems({activityId:$('sel').value})}
-function saveResponse(){let values=items.map((x,i)=>$('sc'+i).value);google.script.run.withSuccessHandler(show).withFailureHandler(fail).parentSaveResponse({activityId:$('sel').value,studentId:$('sid').value,studentName:$('sname').value,parentName:$('pname').value,relationship:$('rel').value,scores:values,comments:$('comment').value})}
-function importSheet(){google.script.run.withSuccessHandler(show).withFailureHandler(fail).parentImportWideSheet({adminKey:adminKey(),sourceSpreadsheetId:$('src').value,sourceSheetName:$('srcsheet').value,academicYear:$('srcyear').value,activityName:$('srcact').value})}
-function dashboard(){google.script.run.withSuccessHandler(r=>{show(r);let h='<table><tr><th>กิจกรรม</th><th>ผู้ตอบ</th><th>เฉลี่ย</th><th>S.D.</th><th>ระดับ</th></tr>';(r.summaries||[]).forEach(x=>h+='<tr><td>'+esc(x.activityName)+'</td><td>'+esc(x.responseCount)+'</td><td>'+esc(x.average)+'</td><td>'+esc(x.sd)+'</td><td>'+esc(x.level)+'</td></tr>');h+='</table>';if(r.itemStats&&r.itemStats.length){h+='<h3>รายข้อ</h3><table><tr><th>ข้อ</th><th>รายการ</th><th>n</th><th>เฉลี่ย</th><th>S.D.</th><th>ระดับ</th></tr>';r.itemStats.forEach(x=>h+='<tr><td>'+esc(x.itemNo)+'</td><td>'+esc(x.itemText)+'</td><td>'+esc(x.count)+'</td><td>'+esc(x.average)+'</td><td>'+esc(x.sd)+'</td><td>'+esc(x.level)+'</td></tr>');h+='</table>'}$('tablebox').innerHTML=h}).withFailureHandler(fail).parentGetDashboard({adminKey:adminKey(),academicYear:$('repyear').value,activityId:$('repid').value})}
-function individual(){google.script.run.withSuccessHandler(r=>{show(r);let h='<p><b>ภาพรวม:</b> '+esc(r.overallAverage)+' | '+esc(r.overallLevel)+'</p>';(r.details||[]).forEach((x,i)=>{h+='<div class="activity-block"><h3>'+(i+1)+'. '+esc(x.activityName)+'</h3><p>ผู้ปกครอง: '+esc(x.parentName)+' ('+esc(x.relationship)+') | เฉลี่ย '+esc(x.average)+' | S.D. '+esc(x.sd)+' | '+esc(x.level)+'</p><table><tr><th>ข้อ</th><th>รายการประเมิน</th><th>คะแนน</th><th>แปลผล</th></tr>';(x.itemDetails||[]).forEach(it=>h+='<tr><td>'+esc(it.itemNo)+'</td><td>'+esc(it.itemText)+'</td><td>'+esc(it.score)+'</td><td>'+esc(it.level)+'</td></tr>');h+='</table>';if(x.comments)h+='<p><b>ข้อเสนอแนะ:</b> '+esc(x.comments)+'</p>';h+='</div>'});$('tablebox').innerHTML=h}).withFailureHandler(fail).parentGetIndividualReport({adminKey:adminKey(),academicYear:$('repyear').value,studentId:$('iid').value,studentName:$('iname').value})}
-function pdf(){google.script.run.withSuccessHandler(r=>{show(r);if(r.pdfUrl)window.open(r.pdfUrl,'_blank')}).withFailureHandler(fail).parentExportActivityPdf({adminKey:adminKey(),activityId:$('repid').value})}
-function individualPdf(){google.script.run.withSuccessHandler(r=>{show(r);if(r.pdfUrl)window.open(r.pdfUrl,'_blank')}).withFailureHandler(fail).parentExportIndividualPdf({adminKey:adminKey(),academicYear:$('repyear').value,studentId:$('iid').value,studentName:$('iname').value})}
-</script></body></html>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">ปค.</div>
+      <div>
+        <div class="brand-title">แผนกปกครอง วพอ.พอ.</div>
+        <div class="brand-sub">Parent Evaluation Intelligence</div>
+      </div>
+    </div>
+
+    <div class="nav-label">เมนูหลัก</div>
+    <nav class="nav">
+      <button class="nav-btn active" data-view="response" onclick="tab('response',this)">
+        <span class="nav-icon">✦</span><span class="nav-text"><strong>ทำแบบประเมิน</strong><small>สำหรับผู้ปกครอง</small></span>
+      </button>
+      <button class="nav-btn" data-view="setup" onclick="tab('setup',this)">
+        <span class="nav-icon">⌁</span><span class="nav-text"><strong>ตั้งค่าระบบ</strong><small>Admin & Diagnostic</small></span>
+      </button>
+      <button class="nav-btn" data-view="activity" onclick="tab('activity',this)">
+        <span class="nav-icon">＋</span><span class="nav-text"><strong>สร้างกิจกรรม</strong><small>กำหนดคำถามจริง</small></span>
+      </button>
+      <button class="nav-btn" data-view="import" onclick="tab('import',this)">
+        <span class="nav-icon">⇧</span><span class="nav-text"><strong>นำเข้าข้อมูล</strong><small>Google Sheet</small></span>
+      </button>
+      <button class="nav-btn" data-view="report" onclick="tab('report',this)">
+        <span class="nav-icon">▥</span><span class="nav-text"><strong>รายงานผล</strong><small>กิจกรรมและรายบุคคล</small></span>
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="secure-line"><span id="secureDot" class="secure-dot"></span><span id="secureText">โหมดผู้ปกครอง</span></div>
+      <p>ข้อมูลรายงานและเมนูจัดการถูกป้องกันด้วย Admin Key ของแผนกปกครอง</p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="page-title">
+        <h1 id="pageHeading">ทำแบบประเมินผู้ปกครอง</h1>
+        <p id="pageSubheading">เลือกกิจกรรมและให้คะแนนตามความเป็นจริง</p>
+      </div>
+      <div id="topStatus" class="system-chip REVIEW"><i></i><span>พร้อมใช้งาน</span></div>
+    </header>
+
+    <section class="hero">
+      <div class="hero-content">
+        <div>
+          <div class="eyebrow">แผนกปกครอง • วิทยาลัยพยาบาลทหารอากาศ</div>
+          <h2>ระบบแปลผลการประเมินผู้ปกครองแบบครบวงจร</h2>
+          <p>จัดเก็บข้อมูลตามปีการศึกษา วิเคราะห์รายกิจกรรมและรายบุคคล พร้อมรายงาน PDF โดยใช้ข้อความคำถามจริงและมีระบบตรวจสอบคุณภาพข้อมูล</p>
+        </div>
+        <div class="hero-metrics">
+          <div class="metric"><strong>1–5</strong><span>ระดับคะแนนมาตรฐาน</span></div>
+          <div class="metric"><strong>QA</strong><span>ตรวจข้อมูลก่อนรายงาน</span></div>
+          <div class="metric"><strong>PDF</strong><span>รายกิจกรรม/รายบุคคล</span></div>
+          <div class="metric"><strong>Secure</strong><span>ป้องกันด้วย Admin Key</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="response" class="pane">
+      <div class="section-head">
+        <div><h3>แบบประเมินผู้ปกครอง</h3><p>ข้อมูลของท่านจะถูกใช้เพื่อพัฒนาการดำเนินงานของวิทยาลัย</p></div>
+        <span class="section-badge">PUBLIC FORM</span>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <div class="card-title"><div class="icon">01</div><div><h4>ข้อมูลผู้ตอบ</h4><p>ระบุข้อมูลให้ครบก่อนเริ่มประเมิน</p></div></div>
+          <div class="form-grid">
+            <div class="field"><label>ปีการศึกษา</label><input id="ry" value="2569" inputmode="numeric"></div>
+            <div class="field"><label>&nbsp;</label><button class="btn btn-primary" type="button" onclick="loadActivities()">โหลดกิจกรรม</button></div>
+            <div class="field full"><label>กิจกรรม</label><select id="sel" onchange="loadItems()"><option value="">เลือกกิจกรรม</option></select></div>
+            <div class="field"><label>รหัส/เลขที่นักเรียน <small>ถ้ามี</small></label><input id="sid" placeholder="เช่น 001"></div>
+            <div class="field"><label>ชื่อ-สกุลนักเรียน</label><input id="sname" placeholder="กรอกชื่อ-สกุล"></div>
+            <div class="field"><label>ชื่อผู้ปกครอง</label><input id="pname" placeholder="กรอกชื่อผู้ปกครอง"></div>
+            <div class="field"><label>ความสัมพันธ์</label><input id="rel" placeholder="บิดา / มารดา / ผู้ปกครอง"></div>
+          </div>
+          <div class="callout" style="margin-top:14px">ผู้ปกครองไม่จำเป็นต้องใช้ Admin Key และไม่สามารถเปิดดูรายงานส่วนบุคคลได้</div>
+        </article>
+
+        <article class="card">
+          <div class="card-title"><div class="icon">02</div><div><h4>ให้คะแนนกิจกรรม</h4><p>เลือกคะแนน 1 ถึง 5 ให้ครบทุกข้อ</p></div></div>
+          <div class="kpis">
+            <div class="kpi"><span>กิจกรรมในปี</span><strong id="activityCount">0</strong><em>รายการ</em></div>
+            <div class="kpi"><span>ข้อคำถาม</span><strong id="itemCount">0</strong><em>ข้อ</em></div>
+            <div class="kpi"><span>ตอบแล้ว</span><strong id="answeredCount">0</strong><em id="progressText">0/0 ข้อ</em></div>
+            <div class="kpi"><span>สถานะ</span><strong style="font-size:15px">กำลังกรอก</strong><em>บันทึกเมื่อครบ</em></div>
+          </div>
+          <div style="height:7px;background:#e8eef5;border-radius:999px;overflow:hidden;margin-bottom:14px"><div id="progressBar" style="height:100%;width:0;background:linear-gradient(90deg,#2563eb,#06b6d4);transition:.25s"></div></div>
+          <div id="scores" class="score-list"></div>
+          <div class="field" style="margin-top:15px"><label>ข้อเสนอแนะเพิ่มเติม <small>ไม่บังคับ</small></label><textarea id="comment" placeholder="พิมพ์ข้อเสนอแนะเพื่อพัฒนาการดำเนินงาน"></textarea></div>
+          <div class="btn-row"><button class="btn btn-success" type="button" onclick="saveResponse()">บันทึกและแปลผล</button></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="setup" class="pane hidden">
+      <div class="section-head"><div><h3>ตั้งค่าระบบและผู้ดูแล</h3><p>ใช้สำหรับเจ้าหน้าที่แผนกปกครองเท่านั้น</p></div><span class="section-badge">ADMIN ONLY</span></div>
+      <div class="grid">
+        <article class="card">
+          <div class="card-title"><div class="icon">🔐</div><div><h4>Admin Key</h4><p>ใช้ป้องกันเมนูจัดการและรายงาน</p></div></div>
+          <div class="field"><label>รหัสผู้ดูแล <small>อย่างน้อย 8 ตัวอักษร</small></label><div class="password-wrap"><input id="adminkey" type="password" minlength="8" autocomplete="current-password" placeholder="กรอก Admin Key" oninput="rememberAdminKey()"><button id="eyeBtn" type="button" class="icon-btn" onclick="togglePassword()">◉</button></div></div>
+          <div class="btn-row">
+            <button class="btn btn-success" type="button" onclick="setup()">Setup Database</button>
+            <button class="btn btn-primary" type="button" onclick="health()">Health</button>
+            <button class="btn btn-warning" type="button" onclick="diagnostic()">Diagnostic</button>
+            <button class="btn btn-ghost" type="button" onclick="selftest()">Self Test</button>
+          </div>
+          <p class="helper">ระบบเก็บ Admin Key เฉพาะใน session ของเบราว์เซอร์ และจะไม่แสดงในรายงาน</p>
+        </article>
+
+        <article class="card status-panel">
+          <div class="card-title"><div class="icon">✓</div><div><h4>สถานะระบบ</h4><p>ตรวจฐานข้อมูลและฟังก์ชันหลัก</p></div></div>
+          <div class="status-main"><div id="statusOrb" class="status-orb REVIEW"></div><div><strong id="badge">WAIT</strong><span id="state">ยังไม่ได้ทดสอบ</span></div></div>
+          <div id="diagnosticBox" class="mini-steps"><div class="mini-step"><b>Setup</b><span>สร้างฐานข้อมูล</span></div><div class="mini-step"><b>Health</b><span>ตรวจการเชื่อมต่อ</span></div><div class="mini-step"><b>Diagnostic</b><span>ตรวจครบทุกส่วน</span></div></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="activity" class="pane hidden">
+      <div class="section-head"><div><h3>สร้างกิจกรรมประเมิน</h3><p>กำหนดข้อมูลกิจกรรมและข้อความคำถามจริง</p></div><span class="section-badge">ADMIN ONLY</span></div>
+      <article class="card">
+        <div class="card-title"><div class="icon">＋</div><div><h4>กิจกรรมใหม่</h4><p>ระบบจะสร้าง Item Dictionary อัตโนมัติ</p></div></div>
+        <div class="form-grid">
+          <div class="field"><label>ปีการศึกษา</label><input id="ay" value="2569"></div>
+          <div class="field"><label>วันที่กิจกรรม</label><input id="ad" placeholder="เช่น 10 ก.ค. 2569"></div>
+          <div class="field full"><label>ชื่อกิจกรรม</label><input id="an" placeholder="เช่น ประชุมผู้ปกครองประจำปี"></div>
+          <div class="field full"><label>ข้อคำถามจริง <small>ข้อละ 1 บรรทัด</small></label><textarea id="ai" placeholder="1. ความเหมาะสมของกิจกรรม&#10;2. การสื่อสารของวิทยาลัยมีความชัดเจน"></textarea></div>
+        </div>
+        <div class="callout" style="margin-top:13px">ระบบจะปฏิเสธหัวข้อแบบ Q1, Q2, Column หรือข้อความที่สั้นเกินไป เพื่อป้องกันรายงานที่อ่านไม่รู้เรื่อง</div>
+        <div class="btn-row"><button class="btn btn-success" type="button" onclick="createActivity()">สร้างกิจกรรม</button></div>
+      </article>
+    </section>
+
+    <section id="import" class="pane hidden">
+      <div class="section-head"><div><h3>นำเข้าข้อมูลจาก Google Sheet</h3><p>รองรับข้อมูลแบบกว้างที่แถวแรกเป็นข้อความคำถามจริง</p></div><span class="section-badge">ADMIN ONLY</span></div>
+      <article class="card">
+        <div class="card-title"><div class="icon">⇧</div><div><h4>Import & Validate</h4><p>นำเข้าและตรวจคุณภาพในขั้นตอนเดียว</p></div></div>
+        <div class="form-grid">
+          <div class="field full"><label>Spreadsheet ID</label><input id="src" placeholder="ใส่ Google Sheet ID ต้นทาง"></div>
+          <div class="field"><label>ชื่อชีต <small>เว้นว่างใช้ชีตแรก</small></label><input id="srcsheet" placeholder="Form Responses 1"></div>
+          <div class="field"><label>ปีการศึกษา</label><input id="srcyear" value="2569"></div>
+          <div class="field full"><label>ชื่อกิจกรรม</label><input id="srcact" placeholder="เช่น ประเมินกิจกรรมพบผู้ปกครอง"></div>
+        </div>
+        <div class="btn-row"><button class="btn btn-warning" type="button" onclick="importSheet()">Import และแปลผล</button></div>
+        <div id="importSummary" style="margin-top:16px"></div>
+      </article>
+    </section>
+
+    <section id="report" class="pane hidden">
+      <div class="section-head"><div><h3>รายงานและการวิเคราะห์</h3><p>ดูภาพรวม รายบุคคล และส่งออก PDF</p></div><span class="section-badge">ADMIN ONLY</span></div>
+      <div class="grid">
+        <article class="card">
+          <div class="card-title"><div class="icon">▥</div><div><h4>รายกิจกรรม</h4><p>สรุปผลรวมและผลรายข้อ</p></div></div>
+          <div class="form-grid">
+            <div class="field"><label>ปีการศึกษา</label><input id="repyear" value="2569"></div>
+            <div class="field"><label>Activity ID <small>เว้นว่างดูทั้งหมด</small></label><input id="repid" placeholder="PE-XXXXXXXX"></div>
+          </div>
+          <div class="btn-row"><button class="btn btn-primary" type="button" onclick="dashboard()">วิเคราะห์ Dashboard</button><button class="btn btn-warning" type="button" onclick="pdf()">Export PDF กิจกรรม</button></div>
+        </article>
+
+        <article class="card">
+          <div class="card-title"><div class="icon">◎</div><div><h4>รายบุคคล</h4><p>ค้นหาด้วยรหัสหรือชื่อผู้เรียน</p></div></div>
+          <div class="form-grid">
+            <div class="field"><label>รหัสนักเรียน</label><input id="iid" placeholder="เช่น 001"></div>
+            <div class="field"><label>ชื่อ-สกุลนักเรียน</label><input id="iname" placeholder="ค้นหาจากชื่อ"></div>
+          </div>
+          <div class="btn-row"><button class="btn btn-primary" type="button" onclick="individual()">ดูรายบุคคล</button><button class="btn btn-warning" type="button" onclick="individualPdf()">Export PDF รายบุคคล</button></div>
+        </article>
+      </div>
+
+      <div id="reportKpis" class="kpis" style="margin-top:16px"></div>
+      <article class="card" style="margin-top:16px"><div class="card-title"><div class="icon">↗</div><div><h4>ผลการวิเคราะห์</h4><p>ตารางสรุปจากข้อมูลจริงในระบบ</p></div></div><div id="tablebox"><div class="empty"><div class="empty-icon">▥</div><strong>ยังไม่มีรายงาน</strong><span>เลือกรายงานแล้วกดวิเคราะห์</span></div></div></article>
+    </section>
+
+    <details class="console">
+      <summary>ผลลัพธ์ระบบและข้อมูลตรวจสอบ</summary>
+      <pre id="out">พร้อมใช้งาน</pre>
+    </details>
+  </main>
+</div>
+
+<div id="loading" class="loading"><div class="loading-box"><div class="spinner"></div><strong id="loadingText">กำลังประมวลผล...</strong><p>กรุณารอสักครู่</p></div></div>
+<div id="toast" class="toast"></div>
+<?!= PE_include_('Parent_Evaluation_App'); ?>
+</body>
+</html>
