@@ -1,18 +1,30 @@
 /**
  * RTAFNC v6 API route override
- * Adds explicit URL actions and the parent evaluation page.
+ * Default page: Modern Parent Evaluation dashboard for แผนกปกครอง วพอ.พอ.
+ * Legacy direct upload page: ?mode=upload
  */
 
 function doGet(e) {
   const p = (e && e.parameter) || {};
-  if (String(p.mode || '').toLowerCase() === 'parent') {
-    return HtmlService.createTemplateFromFile('Parent_Evaluation')
-      .evaluate()
-      .setTitle('ระบบแปลผลผู้ปกครอง | แผนกปกครอง วพอ.พอ.')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-  }
+  const mode = String(p.mode || '').toLowerCase();
+
+  // API requests must always return JSON/JSONP.
   if (p.action || p.callback) return apiGet_(p);
-  return buildUploadPage_();
+
+  // Keep the former upload tool available, but no longer use it as the home page.
+  if (mode === 'upload' || mode === 'direct-upload') {
+    return buildUploadPage_();
+  }
+
+  // Default route and ?mode=parent both open the modern governance dashboard.
+  return buildParentEvaluationPage_();
+}
+
+function buildParentEvaluationPage_() {
+  return HtmlService.createTemplateFromFile('Parent_Evaluation')
+    .evaluate()
+    .setTitle('ระบบแปลผลผู้ปกครอง | แผนกปกครอง วพอ.พอ.')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function apiGet_(p) {
