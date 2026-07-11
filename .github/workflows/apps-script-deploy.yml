@@ -6,6 +6,9 @@ on:
     branches: [main]
     paths:
       - 'google-apps-script/**'
+      - 'skills/parent-evaluation-system/**'
+      - 'docs/parent-evaluation/**'
+      - 'scripts/validate_parent_evaluation.py'
       - '.github/workflows/apps-script-deploy.yml'
 
 jobs:
@@ -22,6 +25,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Validate parent evaluation system
+        run: python3 scripts/validate_parent_evaluation.py
 
       - name: Prepare Apps Script project files
         run: |
