@@ -101,7 +101,7 @@ function parentImportWideSheet(input) {
   });
 
   const previous = PE_read_(PE_CONFIG.SHEETS.IMPORTS).find(function (row) {
-    return row.fingerprint === fingerprint && row.status === 'PASS';
+    return row.fingerprint === fingerprint;
   });
   if (previous) {
     return {
@@ -111,6 +111,7 @@ function parentImportWideSheet(input) {
       message: 'ข้อมูลชุดนี้เคยนำเข้าแล้ว จึงหยุดเพื่อป้องกันข้อมูลซ้ำ',
       previousImportId: previous.importId,
       previousActivityId: previous.activityId,
+      previousStatus: previous.status,
       fingerprint: fingerprint
     };
   }
