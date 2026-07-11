@@ -8,7 +8,7 @@ function doGet(e) {
   if (String(p.mode || '').toLowerCase() === 'parent') {
     return HtmlService.createTemplateFromFile('Parent_Evaluation')
       .evaluate()
-      .setTitle('ระบบแปลผลการประเมินผู้ปกครอง วพอ.พอ.')
+      .setTitle('ระบบแปลผลผู้ปกครอง | แผนกปกครอง วพอ.พอ.')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
   if (p.action || p.callback) return apiGet_(p);
