@@ -23,6 +23,9 @@ REQUIRED_FILES = [
     GAS / "Parent_Evaluation_Import.gs",
     GAS / "Parent_Evaluation_Reports.gs",
     GAS / "ZZ_V6_ApiGet_Override.gs",
+    GAS / "ZZ_ZZ_Parent_Evaluation_Reports_v13_Override.gs",
+    GAS / "ZZ_ZZZ_Parent_Evaluation_Security_v13_Override.gs",
+    GAS / "ZZ_ZZZZ_Parent_Admin_Message_v13_Override.gs",
     GAS / "appsscript.json",
     ROOT / "skills" / "parent-evaluation-system" / "SKILL.md",
     ROOT / "skills" / "parent-evaluation-system" / "LLM_WIKI.md",
@@ -46,10 +49,17 @@ CHECKS = {
         "PE_include_('Parent_Evaluation_App')",
         "แผนกปกครอง วพอ.พอ.",
     ],
+    GAS / "Parent_Evaluation_App.html": [
+        "ensureImportHeaderField",
+        "ensureReportActivitySelector",
+        "result?.ok === false",
+        "คำนวณเฉพาะ PASS",
+    ],
     GAS / "ZZ_V6_ApiGet_Override.gs": [
         "return buildParentEvaluationPage_();",
         "mode === 'upload'",
-        "parentdiagnostic",
+        "ADMIN_GET_BLOCKED",
+        "blockedParentAdminActions",
     ],
     GAS / "Parent_Evaluation_Config.gs": [
         "parent-evaluation-v1.3.0",
@@ -68,12 +78,23 @@ CHECKS = {
         "PE_isSummaryHeader_",
         "alreadyImported",
         ".setValues(responseRows)",
+        "return row.fingerprint === fingerprint;",
     ],
     GAS / "Parent_Evaluation_Reports.gs": [
         "TH Sarabun New",
         "official-governance-v1",
         "แผนกปกครอง วิทยาลัยพยาบาลทหารอากาศ",
         "ค้นหาด้วยรหัสนักเรียน",
+    ],
+    GAS / "ZZ_ZZ_Parent_Evaluation_Reports_v13_Override.gs": [
+        "Only QA PASS records",
+        "passResponses",
+        "passDetails",
+        "itemStats: activityId ? PE_itemStats_(activityId, passResponses) : []",
+    ],
+    GAS / "ZZ_ZZZ_Parent_Evaluation_Security_v13_Override.gs": [
+        "script-properties-owner-only",
+        "PE_requireAdmin_(key)",
     ],
 }
 
@@ -100,7 +121,7 @@ def check_markers() -> None:
         for marker in markers:
             if marker not in text:
                 fail(f"{path.relative_to(ROOT)} missing marker: {marker}")
-    print("PASS: architecture/template markers")
+    print("PASS: architecture/template/security markers")
 
 
 def check_non_destructive_schema() -> None:
@@ -110,6 +131,24 @@ def check_non_destructive_schema() -> None:
         if re.search(pattern, config):
             fail(f"destructive schema operation found: {pattern}")
     print("PASS: non-destructive schema guard")
+
+
+def check_admin_get_security() -> None:
+    router = read(GAS / "ZZ_V6_ApiGet_Override.gs")
+    if "p.adminKey" in router:
+        fail("Admin Key must never be accepted through GET/JSONP query parameters")
+    required_blocked = {
+        "parentsetup",
+        "parentdiagnostic",
+        "parentdashboard",
+        "parentindividual",
+        "parentexportpdf",
+        "parentexportindividualpdf",
+    }
+    missing = [action for action in sorted(required_blocked) if f"'{action}'" not in router]
+    if missing:
+        fail("admin GET blocklist incomplete: " + ", ".join(missing))
+    print("PASS: parent admin GET routes blocked")
 
 
 def node_check(source: str, label: str) -> None:
@@ -161,6 +200,7 @@ def main() -> int:
     check_required_files()
     check_markers()
     check_non_destructive_schema()
+    check_admin_get_security()
     check_javascript_syntax()
     check_manifest()
     print("PASS: parent evaluation validation gate complete")
