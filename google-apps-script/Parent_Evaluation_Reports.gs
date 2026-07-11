@@ -4,26 +4,34 @@ function parentGetDashboard(input) {
   const academicYear = PE_clean_(i.academicYear || '');
   const activityId = PE_clean_(i.activityId || '');
 
-  const activities = PE_read_(PE_CONFIG.SHEETS.ACTIVITIES).filter(a =>
-    (!academicYear || String(a.academicYear) === academicYear) &&
-    (!activityId || String(a.activityId) === activityId)
-  );
+  const activities = PE_read_(PE_CONFIG.SHEETS.ACTIVITIES).filter(function (activity) {
+    return (!academicYear || String(activity.academicYear) === academicYear) &&
+      (!activityId || String(activity.activityId) === activityId) &&
+      String(activity.status || 'ACTIVE') === 'ACTIVE';
+  });
 
-  const responses = PE_read_(PE_CONFIG.SHEETS.RESPONSES).filter(r =>
-    (!academicYear || String(r.academicYear) === academicYear) &&
-    (!activityId || String(r.activityId) === activityId)
-  );
+  const responses = PE_read_(PE_CONFIG.SHEETS.RESPONSES).filter(function (response) {
+    return (!academicYear || String(response.academicYear) === academicYear) &&
+      (!activityId || String(response.activityId) === activityId);
+  });
 
-  const summaries = activities.map(a => {
-    const rows = responses.filter(r => String(r.activityId) === String(a.activityId));
-    const values = rows.map(r => Number(r.average)).filter(isFinite);
+  const summaries = activities.map(function (activity) {
+    const rows = responses.filter(function (response) {
+      return String(response.activityId) === String(activity.activityId);
+    });
+    const values = rows.map(function (response) { return Number(response.average); })
+      .filter(function (value) { return isFinite(value) && value >= 1 && value <= 5; });
     const average = values.length ? PE_round2_(PE_mean_(values)) : '';
+    const reviewCount = rows.filter(function (response) { return response.qaStatus !== 'PASS'; }).length;
+
     return {
-      activityId: a.activityId,
-      academicYear: a.academicYear,
-      activityName: a.activityName,
-      activityDate: a.activityDate,
+      activityId: activity.activityId,
+      academicYear: activity.academicYear,
+      activityName: activity.activityName,
+      activityDate: activity.activityDate,
       responseCount: rows.length,
+      passCount: rows.length - reviewCount,
+      reviewCount: reviewCount,
       average: average,
       sd: values.length ? PE_round2_(PE_sd_(values)) : '',
       level: values.length ? PE_level_(average) : 'ยังไม่มีข้อมูล'
@@ -32,7 +40,7 @@ function parentGetDashboard(input) {
 
   return {
     ok: true,
-    status: 'PASS',
+    status: summaries.length ? 'PASS' : 'REVIEW',
     academicYear: academicYear,
     activityId: activityId,
     summaryCount: summaries.length,
@@ -47,26 +55,63 @@ function parentGetIndividualReport(input) {
   PE_requireAdmin_(i.adminKey);
   const academicYear = PE_clean_(i.academicYear || '');
   const studentId = PE_clean_(i.studentId || '');
-  const studentName = PE_clean_(i.studentName || '');
+  const studentName = PE_normalize_(i.studentName || '');
 
-  if (!academicYear) throw Error('ต้องระบุปีการศึกษา');
-  if (!studentId && !studentName) throw Error('ต้องระบุรหัสหรือชื่อนักเรียน');
+  if (!/^\d{4}$/.test(academicYear)) throw Error('ปีการศึกษาต้องเป็นตัวเลข 4 หลัก');
+  if (!studentId && !studentName) throw Error('ต้องระบุรหัสหรือชื่อ-สกุลนักเรียน');
 
-  let responses = PE_read_(PE_CONFIG.SHEETS.RESPONSES)
-    .filter(r => String(r.academicYear) === academicYear);
+  let responses = PE_read_(PE_CONFIG.SHEETS.RESPONSES).filter(function (response) {
+    return String(response.academicYear) === academicYear;
+  });
 
-  if (studentId) responses = responses.filter(r => String(r.studentId) === studentId);
-  if (studentName) responses = responses.filter(r => String(r.studentName || '').includes(studentName));
+  if (studentId) {
+    responses = responses.filter(function (response) {
+      return PE_clean_(response.studentId) === studentId;
+    });
+    if (studentName) {
+      const normalizedTarget = studentName.toLowerCase();
+      responses = responses.filter(function (response) {
+        return PE_normalize_(response.studentName).toLowerCase() === normalizedTarget;
+      });
+    }
+  } else {
+    const normalizedTarget = studentName.toLowerCase();
+    responses = responses.filter(function (response) {
+      return PE_normalize_(response.studentName).toLowerCase() === normalizedTarget;
+    });
+  }
+
+  const identityKeys = {};
+  responses.forEach(function (response) {
+    const key = PE_clean_(response.studentId) || PE_normalize_(response.studentName).toLowerCase();
+    identityKeys[key] = true;
+  });
+  const identities = Object.keys(identityKeys);
+  if (!studentId && identities.length > 1) {
+    return {
+      ok: false,
+      status: 'REVIEW',
+      ambiguous: true,
+      message: 'พบชื่อซ้ำมากกว่า 1 รหัส กรุณาค้นหาด้วยรหัสนักเรียน',
+      candidateCount: identities.length
+    };
+  }
 
   const activityMap = {};
-  PE_read_(PE_CONFIG.SHEETS.ACTIVITIES).forEach(a => activityMap[a.activityId] = a);
+  PE_read_(PE_CONFIG.SHEETS.ACTIVITIES).forEach(function (activity) {
+    activityMap[activity.activityId] = activity;
+  });
 
-  const details = responses.map(r => {
+  const details = responses.map(function (response) {
     let scores = [];
-    try { scores = JSON.parse(r.scoresJson || '[]'); } catch (err) { scores = []; }
+    try {
+      scores = JSON.parse(response.scoresJson || '[]');
+    } catch (err) {
+      scores = [];
+    }
 
-    const items = PE_items_(r.activityId);
-    const itemDetails = items.map((item, index) => {
+    const items = PE_items_(response.activityId);
+    const itemDetails = items.map(function (item, index) {
       const score = Number(scores[index]);
       const valid = isFinite(score) && score >= 1 && score <= 5;
       return {
@@ -77,28 +122,29 @@ function parentGetIndividualReport(input) {
       };
     });
 
-    const activity = activityMap[r.activityId] || {};
+    const activity = activityMap[response.activityId] || {};
     return {
-      responseId: r.responseId,
-      timestamp: r.timestamp,
-      activityId: r.activityId,
+      responseId: response.responseId,
+      timestamp: response.timestamp,
+      activityId: response.activityId,
       activityName: activity.activityName || '',
       activityDate: activity.activityDate || '',
-      studentId: r.studentId,
-      studentName: r.studentName,
-      parentName: r.parentName,
-      relationship: r.relationship,
-      average: Number(r.average),
-      sd: Number(r.sd),
-      level: r.level,
-      comments: r.comments,
-      qaStatus: r.qaStatus,
+      studentId: response.studentId,
+      studentName: response.studentName,
+      parentName: response.parentName,
+      relationship: response.relationship,
+      average: Number(response.average),
+      sd: Number(response.sd),
+      level: response.level,
+      comments: response.comments,
+      qaStatus: response.qaStatus,
       itemCount: items.length,
       itemDetails: itemDetails
     };
   });
 
-  const averages = details.map(d => Number(d.average)).filter(isFinite);
+  const averages = details.map(function (detail) { return Number(detail.average); })
+    .filter(function (value) { return isFinite(value) && value >= 1 && value <= 5; });
   const overallAverage = averages.length ? PE_round2_(PE_mean_(averages)) : '';
 
   return {
@@ -119,8 +165,9 @@ function parentExportActivityPdf(input) {
   const i = input || {};
   PE_requireAdmin_(i.adminKey);
   const activityId = PE_clean_(i.activityId || '');
-  const activity = PE_activity_(activityId);
   if (!activityId) throw Error('ต้องระบุ activityId');
+
+  const activity = PE_activity_(activityId);
   if (!activity) throw Error('ไม่พบกิจกรรม');
 
   const report = parentGetDashboard({
@@ -129,115 +176,212 @@ function parentExportActivityPdf(input) {
     activityId: activityId
   });
   const summary = report.summaries[0] || {};
+  const comments = PE_read_(PE_CONFIG.SHEETS.RESPONSES)
+    .filter(function (response) {
+      return String(response.activityId) === activityId && PE_clean_(response.comments);
+    })
+    .map(function (response) { return PE_clean_(response.comments); });
 
-  const doc = DocumentApp.create('รายงานผู้ปกครอง_' + activity.academicYear + '_' + activity.activityName);
-  const body = doc.getBody();
-  body.appendParagraph('รายงานแปลผลการประเมินผู้ปกครอง วิทยาลัยพยาบาลทหารอากาศ')
-    .setHeading(DocumentApp.ParagraphHeading.HEADING1);
-  body.appendParagraph('ปีการศึกษา: ' + activity.academicYear);
-  body.appendParagraph('กิจกรรม: ' + activity.activityName);
-  body.appendParagraph('วันที่กิจกรรม: ' + (activity.activityDate || '-'));
-  body.appendParagraph('จำนวนผู้ตอบ: ' + (summary.responseCount || 0));
-  body.appendParagraph('ค่าเฉลี่ยรวม: ' + (summary.average === '' ? '-' : summary.average));
-  body.appendParagraph('S.D.: ' + (summary.sd === '' ? '-' : summary.sd));
-  body.appendParagraph('ระดับ: ' + (summary.level || '-'));
-  body.appendParagraph('ผลรายข้อ').setHeading(DocumentApp.ParagraphHeading.HEADING2);
+  const document = DocumentApp.create(
+    'รายงานผลการประเมินผู้ปกครอง_' + activity.academicYear + '_' + activity.activityName
+  );
+  const body = document.getBody();
 
-  const table = [['ข้อ', 'รายการประเมิน', 'n', 'ค่าเฉลี่ย', 'S.D.', 'แปลผล']];
-  report.itemStats.forEach(x => table.push([
-    String(x.itemNo), String(x.itemText), String(x.count),
-    String(x.average), String(x.sd), String(x.level)
-  ]));
-  body.appendTable(table);
-  body.appendParagraph('หมายเหตุ: ใช้ข้อความคำถามจริงจาก PE_Item_Dictionary');
-  doc.saveAndClose();
+  try {
+    PE_appendOfficialTitle_(body, [
+      'รายงานผลการประเมินผู้ปกครอง',
+      'แผนกปกครอง วิทยาลัยพยาบาลทหารอากาศ กรมแพทย์ทหารอากาศ',
+      'ปีการศึกษา ' + activity.academicYear
+    ]);
 
-  const blob = DriveApp.getFileById(doc.getId())
-    .getAs(MimeType.PDF)
-    .setName('รายงานแปลผล_' + PE_safe_(activity.academicYear + '_' + activity.activityName) + '.pdf');
-  const file = PE_folder_(PE_CONFIG.PDF_FOLDER_NAME).createFile(blob);
-  DriveApp.getFileById(doc.getId()).setTrashed(true);
+    PE_appendBodyParagraph_(body, 'ชื่อกิจกรรม: ' + activity.activityName, true);
+    PE_appendBodyParagraph_(body, 'วันที่ดำเนินกิจกรรม: ' + (activity.activityDate || '-'));
 
-  PE_logQa_('exportActivityPdf', 'PASS', 'Export activity PDF complete', {
-    activityId: activityId,
-    pdfUrl: file.getUrl()
-  });
+    PE_appendSectionHeading_(body, '1. สรุปผลการประเมิน');
+    const summaryTable = body.appendTable([
+      ['จำนวนผู้ตอบ', 'ค่าเฉลี่ย', 'S.D.', 'ระดับผลการประเมิน'],
+      [
+        String(summary.responseCount || 0),
+        summary.average === '' ? '-' : Number(summary.average).toFixed(2),
+        summary.sd === '' ? '-' : Number(summary.sd).toFixed(2),
+        String(summary.level || '-')
+      ]
+    ]);
+    PE_styleTable_(summaryTable, [95, 80, 80, 150]);
 
-  return { ok: true, status: 'PASS', activityId: activityId, pdfUrl: file.getUrl(), fileId: file.getId() };
+    PE_appendSectionHeading_(body, '2. ผลการประเมินรายข้อ');
+    const itemTableRows = [['ข้อ', 'รายการประเมิน', 'n', 'ค่าเฉลี่ย', 'S.D.', 'แปลผล']];
+    report.itemStats.forEach(function (item) {
+      itemTableRows.push([
+        String(item.itemNo),
+        String(item.itemText),
+        String(item.count),
+        item.average === '' ? '-' : Number(item.average).toFixed(2),
+        item.sd === '' ? '-' : Number(item.sd).toFixed(2),
+        String(item.level)
+      ]);
+    });
+    PE_styleTable_(body.appendTable(itemTableRows), [35, 250, 40, 65, 55, 85]);
+
+    PE_appendSectionHeading_(body, '3. ข้อเสนอแนะจากผู้ปกครอง');
+    if (comments.length) {
+      comments.forEach(function (comment, index) {
+        PE_appendBodyParagraph_(body, (index + 1) + '. ' + comment);
+      });
+    } else {
+      PE_appendBodyParagraph_(body, 'ไม่มีข้อเสนอแนะเพิ่มเติม');
+    }
+
+    PE_appendSectionHeading_(body, '4. หมายเหตุและการรับรองข้อมูล');
+    PE_appendBodyParagraph_(
+      body,
+      'รายงานนี้ใช้ข้อความคำถามจริงจาก PE_Item_Dictionary และคำนวณจากข้อมูลที่บันทึกในระบบตามปีการศึกษาและกิจกรรมที่ระบุ'
+    );
+    PE_appendSignatureBlock_(body);
+
+    document.saveAndClose();
+
+    const blob = DriveApp.getFileById(document.getId())
+      .getAs(MimeType.PDF)
+      .setName('รายงานผลการประเมินผู้ปกครอง_' + PE_safe_(activity.academicYear + '_' + activity.activityName) + '.pdf');
+    const file = PE_folder_(PE_CONFIG.PDF_FOLDER_NAME).createFile(blob);
+
+    PE_logQa_('exportActivityPdf', 'PASS', 'Export activity PDF complete', {
+      activityId: activityId,
+      pdfUrl: file.getUrl(),
+      template: 'official-governance-v1'
+    });
+
+    return {
+      ok: true,
+      status: 'PASS',
+      activityId: activityId,
+      pdfUrl: file.getUrl(),
+      fileId: file.getId(),
+      template: 'official-governance-v1'
+    };
+  } finally {
+    try {
+      DriveApp.getFileById(document.getId()).setTrashed(true);
+    } catch (ignore) {}
+  }
 }
 
 function parentExportIndividualPdf(input) {
   const i = input || {};
   PE_requireAdmin_(i.adminKey);
   const report = parentGetIndividualReport(i);
-  if (!report.details.length) throw Error('ไม่พบข้อมูลรายบุคคลสำหรับสร้าง PDF');
+  if (!report.ok || !report.details || !report.details.length) {
+    throw Error(report.message || 'ไม่พบข้อมูลรายบุคคลสำหรับสร้าง PDF');
+  }
 
   const first = report.details[0];
   const displayName = first.studentName || report.studentName || report.studentId || 'ไม่ระบุชื่อ';
-  const doc = DocumentApp.create('รายงานรายบุคคล_' + report.academicYear + '_' + displayName);
-  const body = doc.getBody();
+  const document = DocumentApp.create(
+    'รายงานผลการประเมินผู้ปกครองรายบุคคล_' + report.academicYear + '_' + displayName
+  );
+  const body = document.getBody();
 
-  body.appendParagraph('รายงานแปลผลการประเมินผู้ปกครองรายบุคคล')
-    .setHeading(DocumentApp.ParagraphHeading.HEADING1);
-  body.appendParagraph('วิทยาลัยพยาบาลทหารอากาศ กรมแพทย์ทหารอากาศ');
-  body.appendParagraph('ปีการศึกษา: ' + report.academicYear);
-  body.appendParagraph('รหัสนักเรียน: ' + (first.studentId || '-'));
-  body.appendParagraph('ชื่อ-สกุลนักเรียน: ' + (first.studentName || '-'));
-  body.appendParagraph('ค่าเฉลี่ยรวมทุกกิจกรรม: ' + report.overallAverage);
-  body.appendParagraph('S.D.: ' + report.overallSd);
-  body.appendParagraph('ระดับภาพรวม: ' + report.overallLevel);
+  try {
+    PE_appendOfficialTitle_(body, [
+      'รายงานผลการประเมินผู้ปกครองรายบุคคล',
+      'แผนกปกครอง วิทยาลัยพยาบาลทหารอากาศ กรมแพทย์ทหารอากาศ',
+      'ปีการศึกษา ' + report.academicYear
+    ]);
 
-  report.details.forEach((detail, index) => {
-    body.appendParagraph((index + 1) + '. ' + detail.activityName)
-      .setHeading(DocumentApp.ParagraphHeading.HEADING2);
-    body.appendParagraph('วันที่กิจกรรม: ' + (detail.activityDate || '-'));
-    body.appendParagraph('ผู้ปกครอง: ' + (detail.parentName || '-') + ' (' + (detail.relationship || '-') + ')');
-    body.appendParagraph('ค่าเฉลี่ย: ' + detail.average + ' | S.D.: ' + detail.sd + ' | ระดับ: ' + detail.level);
+    PE_appendBodyParagraph_(body, 'รหัสนักเรียน: ' + (first.studentId || '-'));
+    PE_appendBodyParagraph_(body, 'ชื่อ-สกุลนักเรียน: ' + (first.studentName || '-'), true);
 
-    const table = [['ข้อ', 'รายการประเมิน', 'คะแนน', 'แปลผล']];
-    detail.itemDetails.forEach(item => table.push([
-      String(item.itemNo), String(item.itemText), String(item.score), String(item.level)
-    ]));
-    body.appendTable(table);
-    if (detail.comments) body.appendParagraph('ข้อเสนอแนะ: ' + detail.comments);
-  });
+    const summaryTable = body.appendTable([
+      ['จำนวนกิจกรรม', 'ค่าเฉลี่ยรวม', 'S.D.', 'ระดับภาพรวม'],
+      [
+        String(report.responseCount),
+        report.overallAverage === '' ? '-' : Number(report.overallAverage).toFixed(2),
+        report.overallSd === '' ? '-' : Number(report.overallSd).toFixed(2),
+        String(report.overallLevel)
+      ]
+    ]);
+    PE_styleTable_(summaryTable, [95, 90, 80, 145]);
 
-  body.appendParagraph('หมายเหตุ: รายงานนี้แสดงคะแนนรายข้อจากข้อความคำถามจริงใน PE_Item_Dictionary');
-  doc.saveAndClose();
+    report.details.forEach(function (detail, index) {
+      PE_appendSectionHeading_(body, (index + 1) + '. ' + detail.activityName);
+      PE_appendBodyParagraph_(body, 'วันที่กิจกรรม: ' + (detail.activityDate || '-'));
+      PE_appendBodyParagraph_(
+        body,
+        'ผู้ปกครอง: ' + (detail.parentName || '-') + ' (' + (detail.relationship || '-') + ')'
+      );
+      PE_appendBodyParagraph_(
+        body,
+        'ค่าเฉลี่ย: ' + Number(detail.average).toFixed(2) +
+          ' | S.D.: ' + Number(detail.sd).toFixed(2) +
+          ' | ระดับ: ' + detail.level,
+        true
+      );
 
-  const blob = DriveApp.getFileById(doc.getId())
-    .getAs(MimeType.PDF)
-    .setName('รายงานรายบุคคล_' + PE_safe_(report.academicYear + '_' + displayName) + '.pdf');
-  const file = PE_folder_(PE_CONFIG.PDF_FOLDER_NAME).createFile(blob);
-  DriveApp.getFileById(doc.getId()).setTrashed(true);
+      const rows = [['ข้อ', 'รายการประเมิน', 'คะแนน', 'แปลผล']];
+      detail.itemDetails.forEach(function (item) {
+        rows.push([
+          String(item.itemNo),
+          String(item.itemText),
+          String(item.score),
+          String(item.level)
+        ]);
+      });
+      PE_styleTable_(body.appendTable(rows), [40, 280, 60, 90]);
+      if (detail.comments) {
+        PE_appendBodyParagraph_(body, 'ข้อเสนอแนะ: ' + detail.comments, true);
+      }
+    });
 
-  PE_logQa_('exportIndividualPdf', 'PASS', 'Export individual PDF complete', {
-    academicYear: report.academicYear,
-    studentId: first.studentId,
-    studentName: first.studentName,
-    pdfUrl: file.getUrl()
-  });
+    PE_appendBodyParagraph_(
+      body,
+      'หมายเหตุ: รายงานนี้แสดงคะแนนรายข้อจากข้อความคำถามจริงใน PE_Item_Dictionary'
+    );
+    PE_appendSignatureBlock_(body);
+    document.saveAndClose();
 
-  return {
-    ok: true,
-    status: 'PASS',
-    academicYear: report.academicYear,
-    studentId: first.studentId,
-    studentName: first.studentName,
-    pdfUrl: file.getUrl(),
-    fileId: file.getId()
-  };
+    const blob = DriveApp.getFileById(document.getId())
+      .getAs(MimeType.PDF)
+      .setName('รายงานรายบุคคล_' + PE_safe_(report.academicYear + '_' + displayName) + '.pdf');
+    const file = PE_folder_(PE_CONFIG.PDF_FOLDER_NAME).createFile(blob);
+
+    PE_logQa_('exportIndividualPdf', 'PASS', 'Export individual PDF complete', {
+      academicYear: report.academicYear,
+      studentId: first.studentId,
+      studentName: first.studentName,
+      pdfUrl: file.getUrl(),
+      template: 'official-governance-v1'
+    });
+
+    return {
+      ok: true,
+      status: 'PASS',
+      academicYear: report.academicYear,
+      studentId: first.studentId,
+      studentName: first.studentName,
+      pdfUrl: file.getUrl(),
+      fileId: file.getId(),
+      template: 'official-governance-v1'
+    };
+  } finally {
+    try {
+      DriveApp.getFileById(document.getId()).setTrashed(true);
+    } catch (ignore) {}
+  }
 }
 
 function PE_itemStats_(activityId, responses) {
-  return PE_items_(activityId).map((item, index) => {
+  return PE_items_(activityId).map(function (item, index) {
     const values = responses
-      .filter(r => String(r.activityId) === String(activityId))
-      .map(r => {
-        try { return Number(JSON.parse(r.scoresJson || '[]')[index]); }
-        catch (err) { return NaN; }
+      .filter(function (response) { return String(response.activityId) === String(activityId); })
+      .map(function (response) {
+        try {
+          return Number(JSON.parse(response.scoresJson || '[]')[index]);
+        } catch (err) {
+          return NaN;
+        }
       })
-      .filter(n => isFinite(n) && n >= 1 && n <= 5);
+      .filter(function (value) { return isFinite(value) && value >= 1 && value <= 5; });
 
     const average = values.length ? PE_round2_(PE_mean_(values)) : '';
     return {
@@ -248,5 +392,65 @@ function PE_itemStats_(activityId, responses) {
       sd: values.length ? PE_round2_(PE_sd_(values)) : '',
       level: values.length ? PE_level_(average) : 'ยังไม่มีข้อมูล'
     };
+  });
+}
+
+function PE_appendOfficialTitle_(body, lines) {
+  lines.forEach(function (line, index) {
+    const paragraph = body.appendParagraph(line);
+    paragraph.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    paragraph.editAsText()
+      .setFontFamily('TH Sarabun New')
+      .setFontSize(index === 0 ? 20 : 16)
+      .setBold(index <= 1);
+  });
+  body.appendParagraph('');
+}
+
+function PE_appendSectionHeading_(body, text) {
+  const paragraph = body.appendParagraph(text);
+  paragraph.editAsText()
+    .setFontFamily('TH Sarabun New')
+    .setFontSize(16)
+    .setBold(true);
+  paragraph.setSpacingBefore(8).setSpacingAfter(4);
+  return paragraph;
+}
+
+function PE_appendBodyParagraph_(body, text, bold) {
+  const paragraph = body.appendParagraph(text);
+  paragraph.editAsText()
+    .setFontFamily('TH Sarabun New')
+    .setFontSize(16)
+    .setBold(!!bold);
+  paragraph.setLineSpacing(1.15);
+  return paragraph;
+}
+
+function PE_styleTable_(table, widths) {
+  for (let rowIndex = 0; rowIndex < table.getNumRows(); rowIndex++) {
+    const row = table.getRow(rowIndex);
+    for (let cellIndex = 0; cellIndex < row.getNumCells(); cellIndex++) {
+      const cell = row.getCell(cellIndex);
+      cell.editAsText()
+        .setFontFamily('TH Sarabun New')
+        .setFontSize(14)
+        .setBold(rowIndex === 0);
+      if (rowIndex === 0) cell.setBackgroundColor('#D9EAF7');
+      if (widths && widths[cellIndex]) cell.setWidth(widths[cellIndex]);
+    }
+  }
+  return table;
+}
+
+function PE_appendSignatureBlock_(body) {
+  body.appendParagraph('');
+  body.appendParagraph('');
+  const line1 = body.appendParagraph('(ลงชื่อ) ............................................................');
+  const line2 = body.appendParagraph('(............................................................)');
+  const line3 = body.appendParagraph('เจ้าหน้าที่แผนกปกครอง วพอ.พอ.');
+  [line1, line2, line3].forEach(function (paragraph) {
+    paragraph.setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
+    paragraph.editAsText().setFontFamily('TH Sarabun New').setFontSize(16);
   });
 }
