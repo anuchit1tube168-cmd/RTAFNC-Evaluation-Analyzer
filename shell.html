@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0B1A12">
+<title>ระบบแปลผลการประเมิน — แผนกปกครอง วพอ.พอ.</title>
+<style>
+:root{
+  --bg:#0B1A12; --card:#12271B; --card2:#16301F; --line:#2C5545;
+  --gold:#C9A227; --gold-dim:#8F7418; --txt:#E8E6DF; --dim:#93A79A;
+  --brick:#A6402D; --ok:#3E8E5A; --radius:16px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--txt); min-height:100vh;
+  font-family:"Noto Sans Thai","IBM Plex Sans Thai",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:16px; line-height:1.55;
+}
+header{
+  position:sticky; top:0; z-index:50; background:rgba(11,26,18,.93);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);
+  padding:calc(14px + env(safe-area-inset-top)) 16px 14px;
+}
+.brand{display:flex;align-items:center;gap:10px;max-width:640px;margin:0 auto}
+.crest{width:34px;height:34px;border-radius:9px;background:linear-gradient(145deg,var(--gold),var(--gold-dim));
+  display:grid;place-items:center;font-size:17px;flex:0 0 auto}
+h1{font-size:1.02rem;font-weight:700;margin:0;letter-spacing:.2px}
+.sub{font-size:.74rem;color:var(--dim);margin-top:1px}
+main{max-width:640px;margin:0 auto;padding:16px 16px calc(40px + env(safe-area-inset-bottom))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+h2{font-size:.95rem;color:var(--gold);margin:0 0 10px;font-weight:700}
+#drop{border:2px dashed var(--line);border-radius:14px;padding:30px 16px;text-align:center;
+  cursor:pointer;transition:.18s;background:var(--card2)}
+#drop:active,#drop.hot{border-color:var(--gold);background:rgba(201,162,39,.09)}
+#drop .ico{font-size:2.1rem;display:block;margin-bottom:6px}
+#drop b{color:var(--gold)}
+#drop small{color:var(--dim);display:block;margin-top:5px;font-size:.78rem}
+button{font-family:inherit;font-size:.86rem;font-weight:600;cursor:pointer;border-radius:11px;
+  padding:12px 14px;border:1px solid transparent;transition:.15s;min-height:44px}
+button:active{transform:scale(.975)}
+button:disabled{opacity:.5}
+.btn-p{background:var(--gold);color:#1A1400;border-color:var(--gold)}
+.btn-s{background:transparent;color:var(--txt);border-color:var(--line)}
+.btn-d{background:var(--ok);color:#fff;border-color:var(--ok)}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.btn-row .full{grid-column:1/-1}
+.sw-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;
+  border-bottom:1px solid rgba(44,85,69,.5)}
+.sw-row:last-child{border-bottom:0}
+.sw-lbl{font-size:.85rem;flex:1}
+.sw-lbl small{display:block;color:var(--dim);font-size:.72rem;margin-top:1px;line-height:1.4}
+.sw{position:relative;width:50px;height:29px;flex:0 0 auto}
+.sw input{opacity:0;width:0;height:0;position:absolute}
+.sw span{position:absolute;inset:0;background:#2A3B31;border-radius:29px;transition:.22s;cursor:pointer}
+.sw span:before{content:"";position:absolute;width:23px;height:23px;left:3px;top:3px;
+  background:#fff;border-radius:50%;transition:.22s}
+.sw input:checked+span{background:var(--ok)}
+.sw input:checked+span:before{transform:translateX(21px)}
+.prog{margin-top:12px;display:none}
+.prog.on{display:block}
+.prog-bar{height:7px;background:#22382C;border-radius:6px;overflow:hidden}
+.prog-fill{height:100%;width:0;background:linear-gradient(90deg,var(--ok),var(--gold));
+  border-radius:6px;transition:width .35s ease}
+.prog-txt{font-size:.78rem;color:var(--dim);margin-top:6px;display:flex;justify-content:space-between;gap:8px}
+.prog-txt b{color:var(--gold);font-weight:600;flex:0 0 auto}
+.stat{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0}
+.stat div{background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:10px;text-align:center}
+.stat .v{font-size:1.35rem;font-weight:700;color:var(--gold);line-height:1.2}
+.stat .k{font-size:.7rem;color:var(--dim);margin-top:1px}
+.badge{display:inline-block;background:rgba(62,142,90,.2);color:#7FD4A0;border:1px solid var(--ok);
+  border-radius:20px;padding:3px 11px;font-size:.74rem;font-weight:600;margin:0 4px 6px 0}
+.badge.warn{background:rgba(201,162,39,.15);color:var(--gold);border-color:var(--gold-dim)}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:10px;
+  border:1px solid var(--line);border-radius:11px}
+table{width:100%;border-collapse:collapse;font-size:.8rem;min-width:340px}
+th{background:var(--card2);color:var(--gold);padding:9px 10px;text-align:left;font-weight:600;white-space:nowrap}
+td{padding:8px 10px;border-top:1px solid rgba(44,85,69,.55)}
+td.c{text-align:center;font-variant-numeric:tabular-nums}
+.msg{border-radius:11px;padding:11px 13px;font-size:.83rem;margin-top:10px;display:none;line-height:1.6}
+.msg.on{display:block}
+.msg.err{background:rgba(166,64,45,.18);border:1px solid var(--brick);color:#F0B5A8}
+.msg.ok{background:rgba(62,142,90,.16);border:1px solid var(--ok);color:#9FE0B8}
+.msg a{color:var(--gold);font-weight:600}
+input[type=text]{width:100%;background:var(--bg);color:var(--txt);border:1px solid var(--line);
+  border-radius:10px;padding:11px;font-family:inherit;font-size:.88rem;min-height:44px}
+label.fld{font-size:.76rem;color:var(--dim);display:block;margin-bottom:4px}
+.hide{display:none!important}
+.foot{text-align:center;color:var(--dim);font-size:.72rem;padding:18px 0 8px;line-height:1.7}
+@media(min-width:700px){ .stat{grid-template-columns:repeat(4,1fr)} }
+@media print{ body{background:#fff;color:#000} header,#cardUpload,.btn-row,.foot,.prog{display:none!important} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="crest">🛡</div>
+    <div>
+      <h1>ระบบแปลผลการประเมิน</h1>
+      <div class="sub">แผนกปกครอง วิทยาลัยพยาบาลทหารอากาศ</div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<div class="card" id="cardUpload">
+  <h2>📂 นำเข้าไฟล์ประเมิน</h2>
+  <div id="drop">
+    <span class="ico">📊</span>
+    <b>แตะเพื่อเลือกไฟล์</b> หรือลากไฟล์มาวาง
+    <small>รองรับ .xlsx .xls .csv — เลือกได้หลายไฟล์พร้อมกัน</small>
+  </div>
+  <input type="file" id="fileIn" multiple accept=".xlsx,.xls,.csv" class="hide">
+
+  <div class="prog" id="prog">
+    <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
+    <div class="prog-txt"><span id="progTxt">กำลังเริ่ม…</span><b id="progPct">0%</b></div>
+  </div>
+  <div class="msg err" id="err"></div>
+
+  <div style="margin-top:14px">
+    <div class="sw-row">
+      <div class="sw-lbl">แยกโฟลเดอร์ตามฝ่าย/หมวด
+        <small>สร้างโฟลเดอร์ของแต่ละหมวดแยกในปีการศึกษานั้น</small></div>
+      <label class="sw"><input type="checkbox" id="swFolder" checked><span></span></label>
+    </div>
+    <div class="sw-row">
+      <div class="sw-lbl">แปลง PDF อัตโนมัติ
+        <small>บันทึกทั้ง Excel และ PDF เข้า Drive</small></div>
+      <label class="sw"><input type="checkbox" id="swPdf" checked><span></span></label>
+    </div>
+    <div class="sw-row">
+      <div class="sw-lbl">รายงานตามแบบราชการ
+        <small>ตาราง ด้าน / รายการ / x&#772; / S.D. ตามแบบตัวอย่าง</small></div>
+      <label class="sw"><input type="checkbox" id="swFormal" checked><span></span></label>
+    </div>
+  </div>
+
+  <div style="margin-top:12px">
+    <label class="fld">ปีการศึกษา</label>
+    <input type="text" id="acadYear" value="2568" inputmode="numeric">
+  </div>
+</div>
+
+<div id="results"></div>
+
+<div class="foot">
+  งานปกครอง วพอ.พอ. · คำนวณเฉพาะข้อย่อย · S.D. แบบประชากร (STDEVP)<br>
+  เกณฑ์: 4.50–5.00 มากที่สุด · 3.50–4.49 มาก · 2.50–3.49 ปานกลาง · 1.50–2.49 น้อย
+</div>
+
+</main>
+
+<script>/*__SHEETJS__*/</script>
+<script>/*__TQF__*/</script>
+<script>/*__ENGINE__*/</script>
+<script>
+(function(){
+'use strict';
+var $=function(s){return document.querySelector(s);};
+var E=window.EvalEngine;
+
+// Backend เชื่อมตายตัว (deploy จาก repo) — แก้ที่นี่ที่เดียวถ้าเปลี่ยน deployment
+var GAS_URL='https://script.google.com/macros/s/AKfycbz3Uq3oJtOu95URz2HfcgdPnoRYPdaJfFoRi1Eh9-9sRkTx-_iEODKFNN903N0BcVQq/exec';
+
+var drop=$('#drop'), fileIn=$('#fileIn'), results=$('#results');
+var prog=$('#prog'), progFill=$('#progFill'), progTxt=$('#progTxt'), progPct=$('#progPct');
+
+function setProg(pct,txt){
+  prog.classList.add('on');
+  progFill.style.width=Math.min(100,pct)+'%';
+  progPct.textContent=Math.round(Math.min(100,pct))+'%';
+  if(txt) progTxt.textContent=txt;
+}
+function endProg(){ setTimeout(function(){prog.classList.remove('on');progFill.style.width='0';},900); }
+function showErr(m){ var e=$('#err'); e.textContent='⚠ '+m; e.classList.add('on'); }
+function clearErr(){ $('#err').classList.remove('on'); }
+function getYear(){ return ($('#acadYear').value||'2568').trim(); }
+$('#acadYear').onchange=function(){ localStorage.setItem('rtafnc_year',getYear()); };
+(function(){ var y=localStorage.getItem('rtafnc_year'); if(y) $('#acadYear').value=y; })();
+
+drop.onclick=function(){ fileIn.click(); };
+['dragenter','dragover','dragleave','drop'].forEach(function(ev){
+  drop.addEventListener(ev,function(e){
+    e.preventDefault(); e.stopPropagation();
+    if(ev==='dragenter'||ev==='dragover') drop.classList.add('hot'); else drop.classList.remove('hot');
+    if(ev==='drop') handleFiles(e.dataTransfer.files);
+  });
+});
+fileIn.onchange=function(){ handleFiles(fileIn.files); };
+
+function handleFiles(list){
+  clearErr();
+  if(!list||!list.length) return;
+  if(typeof XLSX==='undefined'){ showErr('โหลดไลบรารีอ่าน Excel ไม่สำเร็จ — ลองรีเฟรชหน้า'); return; }
+  var files=Array.prototype.slice.call(list), done=0, step=100/files.length;
+  setProg(4,'เริ่มประมวลผล '+files.length+' ไฟล์…');
+
+  files.forEach(function(f,idx){
+    var rd=new FileReader();
+    var base=idx*step;
+    rd.onload=function(e){
+      try{
+        setProg(base+step*0.2,'['+(idx+1)+'/'+files.length+'] อ่านไฟล์…');
+        var wb=XLSX.read(e.target.result,{type:'array'});
+        setProg(base+step*0.45,'['+(idx+1)+'/'+files.length+'] ตรวจโครงสร้าง…');
+        var ds=E.parseWorkbook(XLSX,wb,f.name.replace(/\.(xlsx|xls|csv)$/i,''));
+        if(!ds.groups||!ds.groups.length) throw new Error('ไม่พบตารางคะแนน (ต้องมีชื่อผู้ประเมิน + คะแนน 1-5)');
+        setProg(base+step*0.75,'['+(idx+1)+'/'+files.length+'] คำนวณ x̄ / S.D.…');
+        var r=E.compute(ds);
+        render(r,f.name.replace(/\.(xlsx|xls|csv)$/i,''));
+      }catch(err){ showErr('"'+f.name+'": '+err.message); }
+      if(++done===files.length){ setProg(100,'เสร็จสมบูรณ์ '+done+' ไฟล์ ✓'); endProg(); }
+    };
+    rd.onerror=function(){ showErr('อ่านไฟล์ "'+f.name+'" ไม่ได้'); if(++done===files.length) endProg(); };
+    rd.readAsArrayBuffer(f);
+  });
+}
+
+// ── ตรวจตระกูล format ──
+function isTQF(r){ return r.questions.length===44 && typeof TQF_FMT!=='undefined'; }
+function detectFamily(r){
+  if(isTQF(r)) return 'A · กิจกรรมรายด้าน TQF (44 ข้อ)';
+  if(r.comments && r.comments.length) return 'E · มีข้อเสนอแนะ ('+r.questions.length+' ข้อ)';
+  return 'B · แบบคะแนนรายข้อ ('+r.questions.length+' ข้อ)';
+}
+function ab2b64(buf){
+  var bytes=new Uint8Array(buf), bin='', CH=0x8000;
+  for(var i=0;i<bytes.length;i+=CH) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH));
+  return btoa(bin);
+}
+
+function render(r,fname){
+  var yrs=r.byGroup.filter(function(g){ return /ชั้นปีที่ \d/.test(g.label); });
+  var box=document.createElement('div');
+  box.className='card';
+  box.innerHTML=
+    '<h2>📈 '+fname+'</h2>'+
+    '<span class="badge">'+detectFamily(r)+'</span>'+
+    '<span class="badge warn">นับ '+r.leaf.filter(Boolean).length+'/'+r.questions.length+' ข้อ</span>'+
+    '<div class="stat">'+
+      '<div><div class="v">'+r.total.n+'</div><div class="k">ผู้ประเมิน</div></div>'+
+      '<div><div class="v">'+r.total.overall.toFixed(2)+'</div><div class="k">ค่าเฉลี่ย (x̄)</div></div>'+
+      '<div><div class="v">'+r.total.overallSD.toFixed(2)+'</div><div class="k">S.D.</div></div>'+
+      '<div><div class="v" style="font-size:.92rem;padding-top:7px">'+r.total.interp+'</div><div class="k">การแปลผล</div></div>'+
+    '</div>'+
+    (yrs.length?'<div class="tbl-wrap"><table><thead><tr><th>ชั้นปี</th><th class="c">จำนวน</th><th class="c">x̄</th><th class="c">S.D.</th><th>แปลผล</th></tr></thead><tbody>'+
+      yrs.map(function(g){ return '<tr><td>'+g.label+'</td><td class="c">'+g.n+'</td><td class="c">'+
+        g.overall.toFixed(2)+'</td><td class="c">'+g.overallSD.toFixed(2)+'</td><td>'+g.interp+'</td></tr>'; }).join('')+
+      '</tbody></table></div>':'')+
+    '<div class="btn-row">'+
+      '<button class="btn-p" data-act="xlsx">⬇ Excel</button>'+
+      '<button class="btn-p" data-act="pdf">⬇ PDF</button>'+
+      '<button class="btn-d full" data-act="drive">☁ บันทึกเข้า Google Drive</button>'+
+      '<button class="btn-s full" data-act="close">✕ ปิดผลนี้</button>'+
+    '</div>'+
+    '<div class="prog" data-role="dprog"><div class="prog-bar"><div class="prog-fill" data-role="dfill"></div></div>'+
+      '<div class="prog-txt"><span data-role="dtxt"></span><b data-role="dpct"></b></div></div>'+
+    '<div class="msg" data-role="dmsg"></div>';
+  results.prepend(box);
+
+  var dprog=box.querySelector('[data-role=dprog]'), dfill=box.querySelector('[data-role=dfill]');
+  var dtxt=box.querySelector('[data-role=dtxt]'), dpct=box.querySelector('[data-role=dpct]');
+  var dmsg=box.querySelector('[data-role=dmsg]');
+  function dp(p,t){ dprog.classList.add('on'); dfill.style.width=Math.min(100,p)+'%';
+    dpct.textContent=Math.round(Math.min(100,p))+'%'; if(t) dtxt.textContent=t; }
+  function dend(){ setTimeout(function(){ dprog.classList.remove('on'); dfill.style.width='0'; },900); }
+  function dm(cls,html){ dmsg.className='msg on '+cls; dmsg.innerHTML=html; }
+
+  function makeXlsx(){
+    var aoa=E.buildExportAOA(r,{title:fname,year:getYear()});
+    var wb=XLSX.utils.book_new();
+    Object.keys(aoa).forEach(function(sn){
+      XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa[sn]),sn.slice(0,31));
+    });
+    return XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  }
+  function dl(buf,name,mime){
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([buf],{type:mime}));
+    a.download=name; document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1500);
+  }
+
+  // ── HTML รายงาน (ตามแบบตัวอย่างถ้าเป็นตระกูล TQF) ──
+  function reportHTML(){
+    var y=getYear(), formal=$('#swFormal').checked && isTQF(r);
+    var css='@page{size:A4;margin:16mm 14mm}*{box-sizing:border-box}'+
+      'body{font-family:"TH Sarabun PSK","TH SarabunPSK","Sarabun","Tahoma",sans-serif;font-size:16pt;line-height:1.3;color:#000;margin:0}'+
+      '.h1{text-align:center;font-size:16pt;font-weight:700;margin:0}'+
+      '.h2{text-align:center;font-size:16pt;margin:4px 0}'+
+      '.ct{font-weight:700;margin-top:10px}.cl{font-size:15pt;margin-left:1em}'+
+      'table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:8px}'+
+      'th{border:1px solid #000;padding:5px;font-size:15pt;font-weight:700;text-align:center;background:#dbe5f1}'+
+      'td{border:1px solid #000;padding:4px 7px;font-size:15pt;vertical-align:middle;word-break:break-word}'+
+      'td.dom{text-align:center;font-weight:700;background:#eef3fa}td.tl{text-align:left}td.c{text-align:center}'+
+      'tr.sum td{font-weight:700;background:#f5f8fc}';
+    var body='';
+    if(formal){
+      var by={};
+      r.total.perQ.forEach(function(q,i){ by[r.questions[i]]=q; });
+      var order=[], grp={};
+      TQF_FMT.items.forEach(function(it){
+        if(!grp[it.d]){ grp[it.d]=[]; order.push(it.d); }
+        grp[it.d].push(it);
+      });
+      var rows='', sum=0, cnt=0;
+      order.forEach(function(d){
+        grp[d].forEach(function(it,i){
+          var code=it.t.split(' ')[0], q=by[code]||{};
+          var m=(q.mean!=null)?q.mean.toFixed(2):'-', s=(q.sd!=null)?q.sd.toFixed(2):'-';
+          if(q.mean!=null){ sum+=q.mean; cnt++; }
+          rows+='<tr>'+(i===0?'<td class="dom" rowspan="'+grp[d].length+'">'+d+'</td>':'')+
+            '<td class="tl">'+it.t+'</td><td class="c">'+m+'</td><td class="c">'+s+'</td></tr>';
+        });
+      });
+      body='<div class="h1">'+String(TQF_FMT.title||'').replace(/25\d\d/g,y)+'</div>'+
+        '<div class="h2">ผลรายกิจกรรม (รวมทุกชั้นปี) นพอ.ชั้นปีที่ 1-4 ปีการศึกษา '+y+'</div>'+
+        '<div class="ct">เกณฑ์การประเมิน</div>'+
+        TQF_FMT.crit.map(function(c){ return '<div class="cl">'+c+'</div>'; }).join('')+
+        '<table><thead><tr><th style="width:20%">ด้าน</th><th style="width:60%">รายการประเมิน</th>'+
+        '<th style="width:10%">x&#772;</th><th style="width:10%">S.D.</th></tr></thead><tbody>'+rows+
+        '<tr class="sum"><td class="c" colspan="2">ค่าเฉลี่ยรวม</td><td class="c">'+
+        (cnt?(sum/cnt).toFixed(2):'-')+'</td><td class="c">'+r.total.overallSD.toFixed(2)+'</td></tr></tbody></table>';
+    }else{
+      var rr='';
+      r.total.perQ.forEach(function(q,i){
+        rr+='<tr><td class="tl">'+r.questions[i]+'</td><td class="c">'+(q.mean!=null?q.mean.toFixed(2):'-')+
+          '</td><td class="c">'+(q.sd!=null?q.sd.toFixed(2):'-')+'</td><td class="c">'+E.interp(q.mean)+'</td></tr>';
+      });
+      var yr2=yrs.map(function(g){ return '<tr><td class="tl">'+g.label+'</td><td class="c">'+g.n+
+        '</td><td class="c">'+g.overall.toFixed(2)+'</td><td class="c">'+g.interp+'</td></tr>'; }).join('');
+      body='<div class="h1">รายงานผลการประเมิน '+fname+'</div>'+
+        '<div class="h2">วิทยาลัยพยาบาลทหารอากาศ · ปีการศึกษา '+y+' · ผู้ประเมิน '+r.total.n+' คน</div>'+
+        (yr2?'<div class="ct">ผลแยกตามชั้นปี</div><table><thead><tr><th>ชั้นปี</th><th>จำนวน</th><th>x&#772;</th><th>แปลผล</th></tr></thead><tbody>'+yr2+'</tbody></table>':'')+
+        '<div class="ct">ผลรายข้อ</div><table><thead><tr><th style="width:52%">รายการ</th><th>x&#772;</th><th>S.D.</th><th>แปลผล</th></tr></thead><tbody>'+rr+
+        '<tr class="sum"><td class="tl">ค่าเฉลี่ยรวม</td><td class="c">'+r.total.overall.toFixed(2)+
+        '</td><td class="c">'+r.total.overallSD.toFixed(2)+'</td><td class="c">'+r.total.interp+'</td></tr></tbody></table>';
+    }
+    return '<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>'+fname+
+      '</title><style>'+css+'</style></head><body>'+body+'</body></html>';
+  }
+
+  box.querySelector('[data-act=xlsx]').onclick=function(){
+    dp(35,'สร้างไฟล์ Excel…');
+    try{
+      dl(makeXlsx(),'ผลประเมิน_'+fname.slice(0,50)+'.xlsx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      dp(100,'ดาวน์โหลดแล้ว ✓'); dend();
+    }catch(e){ dm('err','สร้าง Excel ไม่ได้: '+e.message); dend(); }
+  };
+
+  box.querySelector('[data-act=pdf]').onclick=function(){
+    dp(45,'เตรียมรายงาน PDF…');
+    var w=window.open('','_blank');
+    if(!w){ dm('err','เบราว์เซอร์บล็อกหน้าต่างใหม่ — อนุญาต popup แล้วลองอีกครั้ง'); dend(); return; }
+    w.document.write(reportHTML()); w.document.close();
+    dp(100,'เปิดหน้าพิมพ์แล้ว — เลือก “บันทึกเป็น PDF” ✓'); dend();
+    setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} },700);
+  };
+
+  box.querySelector('[data-act=close]').onclick=function(){ box.remove(); };
+
+  box.querySelector('[data-act=drive]').onclick=function(){
+    var btn=this; btn.disabled=true;
+    var y=getYear(), sepFolder=$('#swFolder').checked, wantPdf=$('#swPdf').checked;
+    dmsg.className='msg';
+    dp(12,'[1/3] สร้างไฟล์ Excel…');
+    try{
+      var b64=ab2b64(makeXlsx());
+      dp(42,'[2/3] อัปโหลดเข้า Google Drive…');
+      fetch(GAS_URL,{
+        method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({
+          filename:'ผลประเมิน_'+fname.slice(0,60)+'.xlsx',
+          year:y,
+          category:sepFolder?fname.slice(0,60):'',
+          makePdf:wantPdf,
+          reportHtml:wantPdf?reportHTML():'',
+          base64:b64
+        })
+      })
+      .then(function(res){ return res.text(); })
+      .then(function(t){
+        var o;
+        try{ o=JSON.parse(t); }
+        catch(e){ throw new Error('ตอบกลับไม่ใช่ JSON — ตรวจว่า Apps Script deploy แบบ Anyone'); }
+        if(!o.ok) throw new Error(o.error||'ไม่ทราบสาเหตุ');
+        dp(100,'[3/3] บันทึกสำเร็จ ✓');
+        var links='✅ บันทึกเข้า Drive แล้ว<br>';
+        if(o.folderUrl) links+='📁 <a href="'+o.folderUrl+'" target="_blank">เปิดโฟลเดอร์</a><br>';
+        if(o.xlsxUrl)   links+='📊 <a href="'+o.xlsxUrl+'" target="_blank">ไฟล์ Excel</a><br>';
+        if(o.pdfUrl)    links+='📄 <a href="'+o.pdfUrl+'" target="_blank">ไฟล์ PDF</a>';
+        dm('ok',links); dend(); btn.disabled=false;
+      })
+      .catch(function(e){
+        dm('err','บันทึกไม่สำเร็จ: '+e.message+
+          '<br><small>ตรวจว่า Apps Script deploy เป็น Web App แบบ “Anyone” และ URL ลงท้าย /exec</small>');
+        dend(); btn.disabled=false;
+      });
+    }catch(e){ dm('err','สร้างไฟล์ไม่ได้: '+e.message); dend(); btn.disabled=false; }
+  };
+}
+})();
+</script>
+</body>
+</html>
