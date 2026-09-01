@@ -2,6 +2,41 @@
 .clasprc.json
 .clasp.json
 
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+service-account*.json
+service_account*.json
+secrets/
+private/
+
+# Sensitive student / assessment data
+**/students.json
+**/students_data.js
+**/students_photos.js
+**/teachers_data.js
+**/all_assessments.json
+**/missing_students.json
+**/line_mappings.json
+**/medical_records*.json
+**/patients*.json
+exports/
+backups/
+records/
+*.db
+*.sqlite
+*.sqlite3
+*.bak
+*.backup
+*.dump
+*.log
+
 # OS / editor
 .DS_Store
 .vscode/
