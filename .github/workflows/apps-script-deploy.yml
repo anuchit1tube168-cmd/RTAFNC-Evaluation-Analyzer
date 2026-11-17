@@ -11,6 +11,10 @@ on:
       - 'scripts/validate_parent_evaluation.py'
       - '.github/workflows/apps-script-deploy.yml'
 
+# จำกัด GITHUB_TOKEN ให้อ่านอย่างเดียว เพื่อลดความเสียหายถ้ามีโค้ดแปลกปลอมรันใน workflow
+permissions:
+  contents: read
+
 jobs:
   deploy-apps-script:
     runs-on: ubuntu-latest
